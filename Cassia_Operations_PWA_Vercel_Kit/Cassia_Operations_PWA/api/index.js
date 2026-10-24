@@ -16,6 +16,11 @@ function assertEmail(v){const s=safeText(v,250).toLowerCase();if(!validEmail(s))
 function assertTable(v){const n=Number(v);if(!Number.isInteger(n)||n<1||n>150)reject('Choose a valid table number.');return n}
 function assertItems(items){if(!Array.isArray(items)||!items.length||items.length>40)reject('Add at least one menu item.');return items.map(i=>{const name=safeText(i.name,120),qty=Number(i.qty);if(!name||!Number.isInteger(qty)||qty<1||qty>50)reject('Check order item and quantity.');return {name,qty,note:safeText(i.note,240)}})}
 async function userFromCookie(db,req){const token=cookies(req).cassia_sid;if(!token||!(/^[a-f0-9]{64}$/.test(token)))return null;const s=await db.collection('sessions').findOne({hash:sha(token),expires:{$gt:new Date()}});if(!s)return null;const u=await db.collection('users').findOne({_id:s.userId,active:true});return u||null}
+async function publish(db,roles,kind,title,body,targetEmail=null){
+ try{await db.collection('notifications').insertOne({roles,kind,title,body,targetEmail,createdAt:new Date(),readBy:[]})}catch(e){console.error('Notification save:',e.message)}
+}
+function mobile(value){const raw=String(value||'').replace(/[^0-9]/g,'');const phone=raw.startsWith('91')&&raw.length===12?raw.slice(2):raw;if(!/^[6-9][0-9]{9}$/.test(phone))reject('Enter a valid 10-digit Indian mobile number.');return phone}
+function customerPublic(c){return{id:String(c._id),name:c.name,phone:c.phone,tier:c.tier||'regular',note:c.note||'',updatedAt:c.updatedAt}}
 async function audit(db,user,action,data){await db.collection('audit').insertOne({actor:user?String(user._id):'guest',action,details:data||{},createdAt:new Date()});}
 async function relayToRender(req,res){
   const expected=process.env.APP_ORIGIN||'https://cassiams.vercel.app';
@@ -171,6 +176,16 @@ export default async function handler(req,res){
    await audit(db,u,action,{target:id,email:target.email,mode,...changes});
    return reply(res,200,{ok:true,message:mode==='deactivate'?'Account disabled and existing sessions revoked.':mode==='activate'?'Staff account activated.':'Role updated; employee must sign in again.'});
   }
+  if(action==='users.set_password'){
+   const id=safeText(body.id,40),password=String(body.password||'');
+   if(!/^[a-f0-9]{24}$/i.test(id)||password.length<12||password.length>256)reject('Choose a staff account and a password of at least 12 characters.');
+   const target=await C('users').findOne({_id:new ObjectId(id)});
+   if(!target||target.role==='owner')reject('Owner must change their own password in Account settings.',403);
+   await C('users').updateOne({_id:target._id},{$set:{passwordHash:await passwordHash(password),mustRotatePassword:true,updatedAt:new Date()}});
+   await C('sessions').deleteMany({userId:target._id});await C('otps').deleteMany({userId:target._id});
+   await audit(db,u,action,{target:id,email:target.email});
+   return reply(res,200,{ok:true,message:'Staff password changed, all existing sessions revoked. Employee must sign in again.'});
+  }
   if(action==='users.reset_password'){
    const id=safeText(body.id,40);
    if(!/^[a-f0-9]{24}$/i.test(id))reject('Choose a valid staff account.');
@@ -182,6 +197,62 @@ export default async function handler(req,res){
    await C('otps').deleteMany({userId:target._id});
    await audit(db,u,action,{target:id,email:target.email});
    return reply(res,200,{ok:true,email:target.email,temporaryPassword:temporary,warning:'Copy once and send privately; the previous password no longer works.'});
+  }
+  if(action==='customers.list'){
+   const q=safeText(body.query,60);
+   const escaped=q.replace(/[^a-zA-Z0-9 ]/g,'');
+   const filter=escaped?{$or:[{name:{$regex:escaped,$options:'i'}},{phone:{$regex:escaped.replace(/[^0-9]/g,'')}}]}:{};
+   const data=await C('customers').find(filter).sort({updatedAt:-1}).limit(80).toArray();
+   const ids=data.map(c=>String(c._id));
+   const coupons=ids.length?await C('coupons').find({customerId:{$in:ids}}).sort({createdAt:-1}).limit(150).toArray():[];
+   return reply(res,200,{customers:data.map(c=>({...customerPublic(c),coupons:coupons.filter(x=>x.customerId===String(c._id)).map(x=>({id:String(x._id),code:x.code,description:x.description,status:x.status,expiresAt:x.expiresAt}))}))});
+  }
+  if(action==='customers.save'){
+   const phone=mobile(body.phone),name=safeText(body.name,80);
+   if(name.length<2)reject('Customer name is required.');
+   const existing=await C('customers').findOne({phone}),now=new Date();
+   await C('customers').updateOne({phone},{$set:{phone,name,updatedAt:now},$setOnInsert:{tier:'regular',createdAt:now}},{upsert:true});
+   await audit(db,u,action,{lastFour:phone.slice(-4)});
+   return reply(res,200,{ok:true,message:existing?'Customer details updated.':'Customer added.'});
+  }
+  if(action==='customers.vip'){
+   const phone=mobile(body.phone),tier=safeText(body.tier,12);
+   if(!['vip','regular'].includes(tier))reject('Choose VIP or regular.');
+   const result=await C('customers').updateOne({phone},{$set:{tier,updatedAt:new Date(),tierChangedBy:u.email}});
+   if(!result.matchedCount)reject('Customer not found.',404);
+   await audit(db,u,action,{lastFour:phone.slice(-4),tier});
+   await publish(db,['owner','manager','reception','waiter'],'vip','Loyalty profile updated','An existing guest profile was updated.');
+   return reply(res,200,{ok:true});
+  }
+  if(action==='coupons.issue'){
+   const phone=mobile(body.phone),code=safeText(body.code,28).toUpperCase(),description=safeText(body.description,140),expiresAt=new Date(String(body.expiresAt||''));
+   if(!/^[A-Z0-9_-]{5,28}$/.test(code)||description.length<6)reject('Choose a coupon code and benefit description.');
+   if(!Number.isFinite(expiresAt.getTime())||expiresAt<=new Date())reject('Choose a future expiry date.');
+   const customer=await C('customers').findOne({phone});if(!customer)reject('Customer not found.',404);
+   try{await C('coupons').insertOne({customerId:String(customer._id),code,description,expiresAt,status:'active',createdAt:new Date(),createdBy:u.email})}
+   catch(e){if(e.code===11000)reject('Coupon code already exists.',409);throw e}
+   await audit(db,u,action,{customerId:String(customer._id),code});
+   await publish(db,['owner','manager','reception'],'coupon','Loyalty coupon issued','A coupon is ready. Apply benefits only in Petpooja.');
+   return reply(res,201,{ok:true,code});
+  }
+  if(action==='coupons.redeem'){
+   const code=safeText(body.code,28).toUpperCase(),petpoojaRef=safeText(body.petpoojaRef,100);
+   if(!/^[A-Z0-9_-]{5,28}$/.test(code)||petpoojaRef.length<3)reject('Enter a coupon code and official Petpooja bill reference.');
+   const result=await C('coupons').findOneAndUpdate({code,status:'active',expiresAt:{$gt:new Date()}},{$set:{status:'redeemed',petpoojaRef,redeemedAt:new Date(),redeemedBy:u.email}},{returnDocument:'after'});
+   if(!result)reject('Coupon is expired, missing or already used.',409);
+   await audit(db,u,action,{code,petpoojaRef});
+   await publish(db,['owner','manager','reception'],'coupon','Coupon recorded','Coupon '+code+' reconciled with a Petpooja bill.');
+   return reply(res,200,{ok:true,message:'Coupon recorded. Any discount must be applied separately in Petpooja.'});
+  }
+  if(action==='notifications.list'){
+   const data=await C('notifications').find({$or:[{roles:u.role},{targetEmail:u.email}]}).sort({createdAt:-1}).limit(60).toArray();
+   return reply(res,200,{notifications:data.map(n=>({id:String(n._id),kind:n.kind,title:n.title,body:n.body,createdAt:n.createdAt,read:(n.readBy||[]).includes(String(u._id))}))});
+  }
+  if(action==='notifications.read'){
+   const id=safeText(body.id,40);if(!/^[a-f0-9]{24}$/i.test(id))reject('Invalid notification ID.');
+   const result=await C('notifications').updateOne({_id:new ObjectId(id),$or:[{roles:u.role},{targetEmail:u.email}]},{$addToSet:{readBy:String(u._id)}});
+   if(!result.matchedCount)reject('Notification not available.',404);
+   return reply(res,200,{ok:true});
   }
   if(action==='tables.list'){const data=await C('tables').find({active:true},{projection:{number:1}}).sort({number:1}).toArray();return reply(res,200,{tables:data.map(x=>x.number)})}
   if(action==='tables.provision'){const table=assertTable(body.number),key=hex();await C('tables').updateOne({number:table},{$set:{keyHash:sha(key),active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{table});return reply(res,200,{table,link:`${process.env.APP_ORIGIN||'https://your-domain.vercel.app'}/?table=${table}&key=${key}`,warning:'Print/save this QR URL now. Generating a new one invalidates the previous link.'})}
