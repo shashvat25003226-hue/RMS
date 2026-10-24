@@ -4,6 +4,7 @@ import {database,ensureIndexes} from '../lib/db.js';
 import {sendOtp} from '../lib/mail.js';
 import {roles,can,orderStatuses,sha,hex,safeText,validEmail,passwordHash,passwordVerify,otpDigest,secureEqual,advance,restrictedUser,publicOrder} from '../lib/core.js';
 const DAY=86400000, SESSION_HOURS=12;
+const demoOtpEnabled=()=>process.env.CLIENT_DEMO_MODE==='true'&&process.env.CLIENT_DEMO_OTP==='true';
 const reply=(res,code,data)=>res.status(code).setHeader('Cache-Control','no-store').json(data);
 function cookies(req){return Object.fromEntries(String(req.headers.cookie||'').split(';').map(x=>x.trim().split('=').slice(0,2)).filter(x=>x.length===2));}
 function setSession(res,token){const secure=process.env.SESSION_COOKIE_SECURE!=='false';res.setHeader('Set-Cookie',`cassia_sid=${token}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${SESSION_HOURS*3600}${secure?'; Secure':''}`)}
@@ -36,6 +37,7 @@ export default async function handler(req,res){
    const id=hex(20),code=String(crypto.randomInt(0,1000000)).padStart(6,'0');
    await db.collection('otps').deleteMany({userId:user._id});
    await db.collection('otps').insertOne({id,userId:user._id,hash:otpDigest(id,code),expires:new Date(Date.now()+10*60000),attempts:0});
+   if(demoOtpEnabled())return reply(res,200,{step:'otp',challenge:id,demoOnly:true,demoCode:code,message:'CLIENT DEMO ONLY: This is not email verification.'});
    try{await sendOtp(email,code)}catch(e){await db.collection('otps').deleteOne({id});console.error('OTP send unavailable:',e.message);return reply(res,503,{error:'Email delivery is unavailable. Check Mailjet configuration or retry.'})}
    return reply(res,200,{step:'otp',challenge:id,message:'We emailed your one-time sign-in code. It expires in 10 minutes.'});
   }
@@ -43,9 +45,9 @@ export default async function handler(req,res){
    await rateLimit(db,'otp-ip:'+ipOf(req),25,15*60000);
    const id=safeText(body.challenge,60),code=String(body.code||'');
    if(!/^[a-f0-9]{40}$/.test(id)||!/^[0-9]{6}$/.test(code))reject('Enter your six-digit code.');
-   const chall=await db.collection('otps').findOneAndUpdate({id,expires:{$gt:new Date()},attempts:{$lt:5}},{$inc:{attempts:1}},{returnDocument:'after'});
-   if(!chall||!secureEqual(otpDigest(id,code),chall.hash))return reply(res,401,{error:'Code invalid or expired. You can request a new code.'});
-   await db.collection('otps').deleteOne({id});
+   const chall=await db.collection('otps').findOne({id,expires:{$gt:new Date()},attempts:{$lt:5}});
+   if(!chall||!secureEqual(otpDigest(id,code),chall.hash)){await db.collection('otps').updateOne({id,attempts:{$lt:5}},{$inc:{attempts:1}});return reply(res,401,{error:'Code invalid or expired. You can request a new code.'});}
+   const consumed=await db.collection('otps').findOneAndDelete({id,hash:chall.hash,expires:{$gt:new Date()},attempts:{$lt:5}});if(!consumed)return reply(res,401,{error:'Code already used or expired.'});
    const token=hex();await db.collection('sessions').insertOne({hash:sha(token),userId:chall.userId,expires:new Date(Date.now()+SESSION_HOURS*3600000)});setSession(res,token);
    const u=await db.collection('users').findOne({_id:chall.userId});await audit(db,u,'login',{source:'otp'});
    return reply(res,200,{user:restrictedUser(u)});
@@ -79,6 +81,7 @@ export default async function handler(req,res){
    await audit(db,u,'password.changed',{});
    return reply(res,200,{ok:true,message:'Password changed. Sign in again with OTP.'});
   }
+  if(action==='users.create'&&u.role!=='owner')reject('Only owner can create staff accounts.',403);
   if(!can(u.role,action))reject('Your role does not have permission for this action.',403);
   const C=name=>db.collection(name);
   if(action==='users.list'){const data=await C('users').find({active:true},{projection:{name:1,email:1,role:1}}).sort({role:1,name:1}).toArray();return reply(res,200,{users:data.map(restrictedUser)})}
@@ -93,7 +96,7 @@ export default async function handler(req,res){
   if(action==='tables.provision'){const table=assertTable(body.number),key=hex();await C('tables').updateOne({number:table},{$set:{keyHash:sha(key),active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{table});return reply(res,200,{table,link:`${process.env.APP_ORIGIN||'https://your-domain.vercel.app'}/?table=${table}&key=${key}`,warning:'Print/save this QR URL now. Generating a new one invalidates the previous link.'})}
   if(action==='menu.list'){const items=await C('menu').find({active:{$ne:false}},{projection:{name:1,category:1,available:1}}).sort({category:1,name:1}).toArray();return reply(res,200,{items:items.map(i=>({id:String(i._id),name:i.name,category:i.category,available:i.available!==false}))})}
   if(action==='menu.update'){const name=safeText(body.name,120),category=safeText(body.category,55);if(!name||!category)reject('Enter item and category.');await C('menu').updateOne({name},{$set:{name,category,available:body.available!==false,active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{name});return reply(res,200,{ok:true})}
-  if(action==='orders.list'){const data=await C('orders').find({},{projection:{trackHash:0}}).sort({createdAt:-1}).limit(150).toArray();return reply(res,200,{orders:data.map(o=>({...o,id:String(o._id),_id:undefined,idempotencyKey:undefined}))})}
+  if(action==='orders.list'){const q=u.role==='waiter'?{createdBy:String(u._id)}:{};const data=await C('orders').find(q,{projection:{trackHash:0}}).sort({createdAt:-1}).limit(150).toArray();return reply(res,200,{orders:data.map(o=>({...o,id:String(o._id),_id:undefined,idempotencyKey:undefined}))})}
   if(action==='orders.create'){
    const table=assertTable(body.table),items=assertItems(body.items),key=safeText(body.idempotencyKey,80);
    if(!/^[a-zA-Z0-9-]{12,80}$/.test(key))reject('Missing safe order request ID');
@@ -143,7 +146,7 @@ export default async function handler(req,res){
    }
    await C('stock_movements').insertOne({name,unit,delta,reason,by:String(u._id),createdAt:new Date()});await audit(db,u,action,{name,delta,reason});return reply(res,200,{ok:true,quantity:next});
   }
-  if(action==='tasks.list'){const q=u.role==='owner'||u.role==='manager'?{}:{$or:[{assignedTo:u.email},{createdBy:String(u._id)}]};const tasks=await C('tasks').find(q).sort({createdAt:-1}).limit(200).toArray();return reply(res,200,{tasks:tasks.map(t=>({...t,id:String(t._id),_id:undefined}))})}
+  if(action==='tasks.list'){const q=['owner','manager'].includes(u.role)?{}:{assignedTo:u.email};const tasks=await C('tasks').find(q).sort({createdAt:-1}).limit(200).toArray();return reply(res,200,{tasks:tasks.map(t=>({...t,id:String(t._id),_id:undefined}))})}
   if(action==='tasks.create'){
    const title=safeText(body.title,150),assignedTo=assertEmail(body.assignedTo),due=safeText(body.due,20);
    if(!title)reject('Enter a task name.');const assigned=await C('users').findOne({email:assignedTo,active:true});if(!assigned)reject('Assign to an existing employee.');
