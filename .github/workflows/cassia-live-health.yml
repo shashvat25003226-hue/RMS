@@ -1,0 +1,44 @@
+name: Cassia production API health
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cassia-live-health.yml'
+      - 'Cassia_Operations_PWA_Vercel_Kit/Cassia_Operations_PWA/api/index.js'
+      - 'Cassia_Operations_PWA_Vercel_Kit/Cassia_Operations_PWA/lib/db.js'
+jobs:
+  production-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Verify MongoDB readiness via Render (no secrets)
+        shell: bash
+        run: |
+          set -eu
+          for n in {1..6}; do
+            status="$(curl -sS -L --max-time 35 -o /tmp/render-health.json -w '%{http_code}' 'https://rms-7dqy.onrender.com/api?health=ready' || true)"
+            echo "Render HTTP status: $status"
+            if [ "$status" = '200' ]; then
+              node -e "const d=require('/tmp/render-health.json'); if(!d.ok || d.database!=='connected')process.exit(2); console.log('DB ping OK; accounts initialized:',Boolean(d.accountsInitialized));"
+              break
+            fi
+            if [ "$n" = 6 ]; then cat /tmp/render-health.json; exit 1; fi
+            sleep 15
+          done
+      - name: Verify Vercel-to-Render proxy
+        shell: bash
+        run: |
+          set -eu
+          status="$(curl -sS -L --max-time 45 -o /tmp/vercel-health.json -w '%{http_code}' 'https://cassiams.vercel.app/api?health=ready' || true)"
+          echo "Vercel HTTP status: $status"
+          cat /tmp/vercel-health.json
+          test "$status" = '200'
+          node -e "const d=require('/tmp/vercel-health.json');if(d.database!=='connected')process.exit(2);"
+      - name: Check invalid login is denied by backend
+        shell: bash
+        run: |
+          set -eu
+          status="$(curl -sS -L --max-time 45 -o /tmp/login-rejection.json -w '%{http_code}' -H 'Content-Type: application/json' -H 'Origin: https://cassiams.vercel.app' --data '{"action":"auth.start","email":"nonexistent-cassia-smoke-user@example.invalid","password":"invalid-example-only"}' 'https://cassiams.vercel.app/api' || true)"
+          echo "Unauthenticated incorrect-login HTTP status: $status"
+          test "$status" = '401'
+          node -e "const d=require('/tmp/login-rejection.json'); if(!d.error)process.exit(2); console.log('Invalid login correctly denied.');"
