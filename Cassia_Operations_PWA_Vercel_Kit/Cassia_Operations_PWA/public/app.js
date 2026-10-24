@@ -152,9 +152,26 @@ async function initGuest(){show('guest');const table=params.get('table'),secret=
 async function initTracking(){show('tracking');const token=params.get('track');async function refresh(){try{const r=await request('orders.track',{token});const o=r.order;const sequence=['sent','received','preparing','ready','served'];$('#trackingBox').innerHTML=`<p><strong>${escapeHTML(o.id)}</strong> · Table ${o.table} · ${badge(o.status)}</p><div class="status-timeline">${sequence.map((s,i)=>`<div class="status-step ${sequence.indexOf(o.status)>=i?'current':''}">${['Sent to restaurant server','Kitchen has acknowledged','Cooking with care','Ready for collection','Served with love'][i]}</div>`).join('')}</div><p class="muted">${escapeHTML(r.note||'Last updated '+new Date(o.updatedAt).toLocaleTimeString('en-IN'))}</p>`}catch(e){$('#trackingBox').textContent=e.message}}$('#trackRefresh').onclick=refresh;refresh()}
 function enableTheme(){try{if(localStorage.getItem('cassia-ops-theme')==='dark')document.body.classList.add('dark')}catch(_){}$('#themeToggle').onclick=()=>{document.body.classList.toggle('dark');try{localStorage.setItem('cassia-ops-theme',document.body.classList.contains('dark')?'dark':'light')}catch(_){}}}
 async function init(){enableTheme();if(params.has('table')&&params.has('key')&&!preview){initGuest();return}if(params.has('track')&&!preview){initTracking();return}
+ if(!preview&&params.get('setup')==='owner'){show('auth');$('#loginForm').classList.add('hidden');$('#otpForm').classList.add('hidden');$('#ownerSetupForm').classList.remove('hidden');return}
  if(preview){demoRole='owner';user=(await mock('auth.me')).user;enterShell();return}
  try{const res=await request('auth.me');if(res.user){user=res.user;enterShell()}else show('auth')}catch(e){show('auth');$('#authError').textContent='Could not reach secure service. Deploy MongoDB first, then try again.'}
 }
+$('#ownerSetupForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;$('#authError').textContent='';
+ try{
+   const d=formData(e.target);
+   const answer=await request('auth.bootstrap',d);
+   if(!answer.created)throw Error('Owner setup was not completed.');
+   e.target.reset();
+   $('#ownerSetupForm').classList.add('hidden');
+   $('#loginForm').classList.remove('hidden');
+   history.replaceState(null,'','/');
+   $('#authError').textContent='';
+   toast('Owner created. Remove OWNER_SETUP_TOKEN from Render, then sign in.');
+ }catch(error){$('#authError').textContent=error.message}
+ finally{btn.disabled=false}
+});
 $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;$('#authError').textContent='';try{const d=formData(e.target);const r=await request('auth.start',d);challenge=r.challenge;const notice=$('#clientDemoOtp');if(notice){notice.classList.toggle('hidden',!(r.demoOnly&&r.demoCode));notice.textContent=r.demoOnly&&r.demoCode?'CLIENT DEMO ONLY — OTP: '+r.demoCode+' — Not real email verification.':''}$('#loginForm').classList.add('hidden');$('#otpForm').classList.remove('hidden');$('#otpForm [name=code]').focus()}catch(err){$('#authError').textContent=err.message}finally{btn.disabled=false}});
 $('#otpForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;$('#authError').textContent='';try{const r=await request('auth.verify',{challenge,code:e.target.elements.code.value});user=r.user;enterShell()}catch(err){$('#authError').textContent=err.message}finally{btn.disabled=false}});
 $('#backLogin').onclick=()=>{$('#otpForm').classList.add('hidden');$('#loginForm').classList.remove('hidden');challenge=''};
