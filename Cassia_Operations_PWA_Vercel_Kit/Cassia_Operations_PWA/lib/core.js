@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 export const roles=['owner','manager','chef','waiter','reception'];
 export const orderStatuses=['sent','received','preparing','ready','served','cancelled'];
 export const allowedActions={
-  'users.create':['owner'],'users.list':['owner','manager'],'users.update':['owner'],'users.reset_password':['owner'],
+  'users.create':['owner'],'users.list':['owner','manager'],'users.update':['owner'],'users.reset_password':['owner'],'users.set_password':['owner'],
   'tables.list':['owner','manager','chef','waiter','reception'],'tables.provision':['owner','manager'],
   'orders.list':['owner','manager','chef','waiter','reception'],'orders.create':['owner','manager','waiter'],
   'orders.ack':['owner','manager','chef'],'orders.prepare':['owner','manager','chef'],'orders.ready':['owner','manager','chef'],
@@ -13,7 +13,9 @@ export const allowedActions={
   'leave.request':['owner','manager','chef','waiter','reception'],'leave.list':['owner','manager','chef','waiter','reception'],'leave.review':['owner','manager'],
   'closing.confirm':['owner','manager','chef','waiter','reception'],'reports.summary':['owner','manager'],'menu.list':['owner','manager','chef','waiter','reception'],
   'menu.update':['owner','manager'],
-  'audit.list':['owner']
+  'audit.list':['owner'],
+  'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
+  'coupons.issue':['owner','manager'],'coupons.redeem':['owner','manager','reception'],'notifications.list':['owner','manager','chef','waiter','reception'],'notifications.read':['owner','manager','chef','waiter','reception']
 };
 export const can=(role,action)=>(allowedActions[action]||[]).includes(role);
 export const hex=(n=32)=>crypto.randomBytes(n).toString('hex');
