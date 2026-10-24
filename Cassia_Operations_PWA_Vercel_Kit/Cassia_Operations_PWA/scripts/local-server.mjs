@@ -10,4 +10,4 @@ const server=http.createServer(async(req,res)=>{
  if(!f.startsWith(root+path.sep)&&f!==path.resolve(root,'index.html')){res.statusCode=403;res.end('Forbidden');return}
  try{const data=await fs.readFile(f);res.setHeader('Content-Type',mime[path.extname(f)]||'application/octet-stream');res.end(data)}catch(_){res.statusCode=404;res.end('Not found')}
 });
-const port=Number(process.env.PORT||3000);server.listen(port,()=>console.log(`Cassia app: http://localhost:${port}/?preview=1 (no credentials needed for sandbox)\nLogin requires MONGODB_URI and Mailjet configuration.`));
+const port=Number(process.env.PORT||3000);server.listen(port,()=>console.log(`Cassia app: http://localhost:${port}/?preview=1 (no credentials needed for sandbox)\nLogin requires MONGODB_URI and Resend configuration unless client demo OTP is enabled.`));
