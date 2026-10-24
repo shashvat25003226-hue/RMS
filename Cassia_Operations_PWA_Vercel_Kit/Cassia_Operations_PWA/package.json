@@ -1,0 +1,9 @@
+{
+  "name":"cassia-operations-pwa",
+  "version":"1.0.0",
+  "private":true,
+  "type":"module",
+  "scripts":{"dev":"node scripts/local-server.mjs","seed:owner":"node scripts/seed-owner.mjs","check":"node --check api/index.js && node --check public/app.js && node --check lib/core.js && node --test tests/*.test.mjs"},
+  "engines":{"node":">=20"},
+  "dependencies":{"mongodb":"^6.20.0"}
+}
