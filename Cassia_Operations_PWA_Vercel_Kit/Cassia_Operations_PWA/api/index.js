@@ -118,13 +118,53 @@ export default async function handler(req,res){
   if(action==='users.create'&&u.role!=='owner')reject('Only owner can create staff accounts.',403);
   if(!can(u.role,action))reject('Your role does not have permission for this action.',403);
   const C=name=>db.collection(name);
-  if(action==='users.list'){const data=await C('users').find({active:true},{projection:{name:1,email:1,role:1}}).sort({role:1,name:1}).toArray();return reply(res,200,{users:data.map(restrictedUser)})}
+  if(action==='users.list'){
+   const data=await C('users').find({},{projection:{name:1,email:1,role:1,active:1,mustRotatePassword:1,createdAt:1}}).sort({active:-1,role:1,name:1}).toArray();
+   return reply(res,200,{users:data.map(x=>({...restrictedUser(x),active:x.active!==false,mustRotatePassword:x.mustRotatePassword===true}))});
+  }
   if(action==='users.create'){
    const email=assertEmail(body.email),name=safeText(body.name,80),role=safeText(body.role,30);
-   if(!name||!roles.includes(role)||role==='owner')reject('Choose a staff name and valid role.');
-   const temporary=crypto.randomBytes(12).toString('base64url');const pass=await passwordHash(temporary);
-   await C('users').insertOne({email,name,role,passwordHash:pass,active:true,mustRotatePassword:true,createdAt:new Date()});await audit(db,u,action,{email,role});
-   return reply(res,200,{created:true,email,role,temporaryPassword:temporary,warning:'Copy this password now; it will not be shown again. Staff must also receive their email OTP.'});
+   if(name.length<2||!['manager','chef','waiter','reception'].includes(role))reject('Enter a valid staff name and role.');
+   const temporary=crypto.randomBytes(18).toString('base64url');
+   const passwordHashValue=await passwordHash(temporary);
+   try {
+     const result=await C('users').insertOne({email,name,role,passwordHash:passwordHashValue,active:true,mustRotatePassword:true,createdAt:new Date()});
+     await audit(db,u,action,{target:String(result.insertedId),email,role});
+   }catch(error){if(error.code===11000)reject('This email already belongs to an account. Reactivate or reset the existing account.',409);throw error}
+   return reply(res,201,{created:true,email,role,temporaryPassword:temporary,warning:'Temporary password shown once. Share it privately. Staff must sign in using OTP and change the password.'});
+  }
+  if(action==='users.update'){
+   const id=safeText(body.id,40),mode=safeText(body.mode,30);
+   if(!/^[a-f0-9]{24}$/i.test(id))reject('Choose a valid staff account.');
+   const target=await C('users').findOne({_id:new ObjectId(id)});
+   if(!target||target.role==='owner')reject('Owner account cannot be edited from staff management.',403);
+   let changes={};
+   if(mode==='role'){
+     const newRole=safeText(body.role,30);
+     if(!['manager','chef','waiter','reception'].includes(newRole))reject('Choose an allowed staff role.');
+     changes={role:newRole};
+   }else if(mode==='activate')changes={active:true};
+   else if(mode==='deactivate')changes={active:false};
+   else reject('Choose a valid team action.');
+   await C('users').updateOne({_id:target._id},{$set:{...changes,updatedAt:new Date()}});
+   if(mode==='deactivate'||mode==='role'){
+     await C('sessions').deleteMany({userId:target._id});
+     await C('otps').deleteMany({userId:target._id});
+   }
+   await audit(db,u,action,{target:id,email:target.email,mode,...changes});
+   return reply(res,200,{ok:true,message:mode==='deactivate'?'Account disabled and existing sessions revoked.':mode==='activate'?'Staff account activated.':'Role updated; employee must sign in again.'});
+  }
+  if(action==='users.reset_password'){
+   const id=safeText(body.id,40);
+   if(!/^[a-f0-9]{24}$/i.test(id))reject('Choose a valid staff account.');
+   const target=await C('users').findOne({_id:new ObjectId(id)});
+   if(!target||target.role==='owner')reject('Owner credentials cannot be reset here.',403);
+   const temporary=crypto.randomBytes(18).toString('base64url');
+   await C('users').updateOne({_id:target._id},{$set:{passwordHash:await passwordHash(temporary),mustRotatePassword:true,updatedAt:new Date()}});
+   await C('sessions').deleteMany({userId:target._id});
+   await C('otps').deleteMany({userId:target._id});
+   await audit(db,u,action,{target:id,email:target.email});
+   return reply(res,200,{ok:true,email:target.email,temporaryPassword:temporary,warning:'Copy once and send privately; the previous password no longer works.'});
   }
   if(action==='tables.list'){const data=await C('tables').find({active:true},{projection:{number:1}}).sort({number:1}).toArray();return reply(res,200,{tables:data.map(x=>x.number)})}
   if(action==='tables.provision'){const table=assertTable(body.number),key=hex();await C('tables').updateOne({number:table},{$set:{keyHash:sha(key),active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{table});return reply(res,200,{table,link:`${process.env.APP_ORIGIN||'https://your-domain.vercel.app'}/?table=${table}&key=${key}`,warning:'Print/save this QR URL now. Generating a new one invalidates the previous link.'})}
