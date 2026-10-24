@@ -36,7 +36,7 @@ async function relayToRender(req,res){
   }catch(error){console.error('Cassia backend relay:',error.message);return reply(res,503,{error:'Backend unavailable. Please retry.'})}
 }
 export default async function handler(req,res){
- if(!process.env.MONGODB_URI&&process.env.RENDER_API_ORIGIN)return relayToRender(req,res);
+ if(process.env.RENDER_API_ORIGIN)return relayToRender(req,res);
  if(req.method==='GET')return reply(res,200,{ok:true,name:'Cassia Operations API',configured:!!process.env.MONGODB_URI});
  if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'});
  if(req.headers['content-type']?.split(';')[0]!=='application/json')return reply(res,415,{error:'JSON body required'});
