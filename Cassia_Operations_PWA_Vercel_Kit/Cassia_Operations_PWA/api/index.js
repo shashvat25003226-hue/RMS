@@ -115,7 +115,7 @@ export default async function handler(req,res){
    const tableRec=await db.collection('tables').findOne({number:table,keyHash:sha(key),active:true});if(!tableRec)reject('This table QR link is invalid. Ask staff for help.',403);
    const existing=await db.collection('calls').findOne({table,status:{$in:['open','claimed']}});
    if(existing)return reply(res,200,{ok:true,message:'A team member has already been notified.',callId:String(existing._id)});
-   const row={table,type,status:'open',createdAt:new Date(),updatedAt:new Date(),claimedBy:null};const add=await db.collection('calls').insertOne(row);return reply(res,200,{ok:true,message:'Your request has been sent to the service team.',callId:String(add.insertedId)});
+   const row={table,type,status:'open',createdAt:new Date(),updatedAt:new Date(),claimedBy:null};const add=await db.collection('calls').insertOne(row);await publish(db,['owner','manager','waiter','reception'],'table-call','Guest needs help','Table '+table+' • '+type+' request.');return reply(res,200,{ok:true,message:'Your request has been sent to the service team.',callId:String(add.insertedId)});
   }
   if(action==='orders.track'){
    await rateLimit(db,'track:'+ipOf(req),70,10*60000);
@@ -201,7 +201,7 @@ export default async function handler(req,res){
   if(action==='customers.list'){
    const q=safeText(body.query,60);
    const escaped=q.replace(/[^a-zA-Z0-9 ]/g,'');
-   const filter=escaped?{$or:[{name:{$regex:escaped,$options:'i'}},{phone:{$regex:escaped.replace(/[^0-9]/g,'')}}]}:{};
+   const digits=escaped.replace(/[^0-9]/g,'');const pieces=[{name:{$regex:escaped,$options:'i'}}];if(digits.length>=3)pieces.push({phone:{$regex:digits}});const filter=escaped?{$or:pieces}:{};
    const data=await C('customers').find(filter).sort({updatedAt:-1}).limit(80).toArray();
    const ids=data.map(c=>String(c._id));
    const coupons=ids.length?await C('coupons').find({customerId:{$in:ids}}).sort({createdAt:-1}).limit(150).toArray():[];
@@ -258,7 +258,7 @@ export default async function handler(req,res){
   if(action==='tables.provision'){const table=assertTable(body.number),key=hex();await C('tables').updateOne({number:table},{$set:{keyHash:sha(key),active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{table});return reply(res,200,{table,link:`${process.env.APP_ORIGIN||'https://your-domain.vercel.app'}/?table=${table}&key=${key}`,warning:'Print/save this QR URL now. Generating a new one invalidates the previous link.'})}
   if(action==='menu.list'){const items=await C('menu').find({active:{$ne:false}},{projection:{name:1,category:1,available:1}}).sort({category:1,name:1}).toArray();return reply(res,200,{items:items.map(i=>({id:String(i._id),name:i.name,category:i.category,available:i.available!==false}))})}
   if(action==='menu.update'){const name=safeText(body.name,120),category=safeText(body.category,55);if(!name||!category)reject('Enter item and category.');await C('menu').updateOne({name},{$set:{name,category,available:body.available!==false,active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{name});return reply(res,200,{ok:true})}
-  if(action==='orders.list'){const q=u.role==='waiter'?{createdBy:String(u._id)}:{};const data=await C('orders').find(q,{projection:{trackHash:0}}).sort({createdAt:-1}).limit(150).toArray();return reply(res,200,{orders:data.map(o=>({...o,id:String(o._id),_id:undefined,idempotencyKey:undefined}))})}
+  if(action==='orders.list'){const q=u.role==='waiter'?{createdBy:String(u._id)}:{};const data=await C('orders').find(q,{projection:{trackHash:0}}).sort({createdAt:-1}).limit(150).toArray();return reply(res,200,{orders:data.map(o=>({...o,id:String(o._id),_id:undefined,idempotencyKey:undefined,customerPhone:u.role==='chef'?undefined:o.customerPhone}))})}
   if(action==='orders.create'){
    const table=assertTable(body.table),items=assertItems(body.items),key=safeText(body.idempotencyKey,80);
    if(!/^[a-zA-Z0-9-]{12,80}$/.test(key))reject('Missing safe order request ID');
@@ -267,22 +267,25 @@ export default async function handler(req,res){
    const allowedNames=new Set(allowed.map(x=>x.name));if(items.some(x=>!allowedNames.has(x.name)))reject('An item is unavailable or not in the approved menu. Refresh the menu.',409);
    const found=await C('orders').findOne({idempotencyKey:key});if(found)return reply(res,200,{created:false,orderId:found.orderId,status:found.status,message:'Order already sent. Duplicate prevented.'});
    const token=hex(),orderId='C-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomInt(100,999),now=new Date();
-   const row={orderId,idempotencyKey:key,table,items,notes:safeText(body.notes,500),status:'sent',billingStatus:'unmatched',trackHash:sha(token),createdBy:String(u._id),createdAt:now,updatedAt:now,history:[{status:'sent',by:u.name,at:now}]};
+   const customerName=safeText(body.customerName,80);const customerPhone=String(body.customerPhone||'').trim()?mobile(body.customerPhone):'';
+   if(Boolean(customerName)!==Boolean(customerPhone))reject('Enter both customer name and mobile, or leave both blank.');
+   if(customerPhone)await C('customers').updateOne({phone:customerPhone},{$set:{name:customerName,phone:customerPhone,updatedAt:now},$setOnInsert:{tier:'regular',createdAt:now}},{upsert:true});
+   const row={orderId,idempotencyKey:key,table,items,customerName,customerPhone,notes:safeText(body.notes,500),status:'sent',billingStatus:'unmatched',trackHash:sha(token),createdBy:String(u._id),createdAt:now,updatedAt:now,history:[{status:'sent',by:u.name,at:now}]};
    try{await C('orders').insertOne(row)}catch(e){if(e.code===11000){const old=await C('orders').findOne({idempotencyKey:key});return reply(res,200,{created:false,orderId:old?.orderId,status:old?.status,message:'Order already saved.'})}throw e}
-   await audit(db,u,action,{orderId,table});return reply(res,200,{created:true,orderId,status:'sent',trackingToken:token,warning:'Sent to server only. Wait for kitchen acknowledgement.'});
+   await audit(db,u,action,{orderId,table});await publish(db,['owner','manager','chef'],'order','New kitchen ticket','Table '+table+' • '+items.length+' dish line(s) awaiting acknowledgement.');return reply(res,200,{created:true,orderId,status:'sent',trackingToken:token,warning:'Sent to server only. Wait for kitchen acknowledgement.'});
   }
   if(action.startsWith('orders.')&&['orders.ack','orders.prepare','orders.ready','orders.serve'].includes(action)){
    const orderId=safeText(body.orderId,60),next={'orders.ack':'received','orders.prepare':'preparing','orders.ready':'ready','orders.serve':'served'}[action];
    const prev={received:'sent',preparing:'received',ready:'preparing',served:'ready'}[next],at=new Date();
    const result=await C('orders').findOneAndUpdate({orderId,status:prev},{$set:{status:next,updatedAt:at},$push:{history:{status:next,by:u.name,at}}},{returnDocument:'after'});
    if(!result)reject('Order state changed or action is not allowed at this stage.',409);
-   await audit(db,u,action,{orderId,status:next});return reply(res,200,{ok:true,status:next});
+   await audit(db,u,action,{orderId,status:next});await publish(db,next==='ready'?['owner','manager','waiter','reception']:['owner','manager','chef','waiter'],'order','Order '+next,'Table '+result.table+' • '+orderId+' now '+next+'.');return reply(res,200,{ok:true,status:next});
   }
   if(action==='orders.reconcile'){
    const orderId=safeText(body.orderId,60),billingStatus=safeText(body.billingStatus,20),petpoojaRef=safeText(body.petpoojaRef,100);
    if(!['matched','needs_review','unmatched'].includes(billingStatus)||billingStatus==='matched'&&!petpoojaRef)reject('A Petpooja bill reference is required for matched orders.');
    const result=await C('orders').updateOne({orderId},{$set:{billingStatus,petpoojaRef,updatedAt:new Date()}});if(!result.matchedCount)reject('Order not found.',404);
-   await audit(db,u,action,{orderId,billingStatus,petpoojaRef});return reply(res,200,{ok:true});
+   await audit(db,u,action,{orderId,billingStatus,petpoojaRef});await publish(db,['owner','manager','reception'],'billing','Petpooja reconciliation updated','Order '+orderId+' • '+billingStatus+'.');return reply(res,200,{ok:true});
   }
   if(action==='calls.list'){const calls=await C('calls').find({status:{$ne:'done'}}).sort({createdAt:-1}).limit(150).toArray();return reply(res,200,{calls:calls.map(c=>({...c,id:String(c._id),_id:undefined}))})}
   if(action==='calls.claim'||action==='calls.done'){
@@ -306,24 +309,24 @@ export default async function handler(req,res){
      try{await C('stock').insertOne({name,unit,quantity:next,min:0,updatedAt:new Date()})}
      catch(e){if(e.code===11000)reject('Stock was added on another device. Refresh and retry.',409);throw e}
    }
-   await C('stock_movements').insertOne({name,unit,delta,reason,by:String(u._id),createdAt:new Date()});await audit(db,u,action,{name,delta,reason});return reply(res,200,{ok:true,quantity:next});
+   await C('stock_movements').insertOne({name,unit,delta,reason,by:String(u._id),createdAt:new Date()});await audit(db,u,action,{name,delta,reason});await publish(db,['owner','manager','chef'],'stock','Inventory updated',name+' • quantity updated.');return reply(res,200,{ok:true,quantity:next});
   }
   if(action==='tasks.list'){const q=['owner','manager'].includes(u.role)?{}:{assignedTo:u.email};const tasks=await C('tasks').find(q).sort({createdAt:-1}).limit(200).toArray();return reply(res,200,{tasks:tasks.map(t=>({...t,id:String(t._id),_id:undefined}))})}
   if(action==='tasks.create'){
    const title=safeText(body.title,150),assignedTo=assertEmail(body.assignedTo),due=safeText(body.due,20);
    if(!title)reject('Enter a task name.');const assigned=await C('users').findOne({email:assignedTo,active:true});if(!assigned)reject('Assign to an existing employee.');
    if(u.role==='chef'&&!['chef','waiter'].includes(assigned.role))reject('Chef can assign kitchen and waiter work only.',403);
-   await C('tasks').insertOne({title,assignedTo,due,status:'open',createdBy:String(u._id),createdAt:new Date(),updatedAt:new Date()});await audit(db,u,action,{title,assignedTo});return reply(res,200,{ok:true});
+   await C('tasks').insertOne({title,assignedTo,due,status:'open',createdBy:String(u._id),createdAt:new Date(),updatedAt:new Date()});await audit(db,u,action,{title,assignedTo});await publish(db,['owner','manager'],'task','New task assigned',title,assignedTo);return reply(res,200,{ok:true});
   }
   if(action==='tasks.update'){
    let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid task')}
    const task=await C('tasks').findOne({_id:id});if(!task)reject('Task not found.',404);
    if(!['owner','manager'].includes(u.role)&&task.assignedTo!==u.email)reject('You may update only your own task.',403);
-   if(!['open','doing','done'].includes(body.status))reject('Invalid status');await C('tasks').updateOne({_id:id},{$set:{status:body.status,updatedAt:new Date()}});await audit(db,u,action,{id:String(id),status:body.status});return reply(res,200,{ok:true});
+   if(!['open','doing','done'].includes(body.status))reject('Invalid status');await C('tasks').updateOne({_id:id},{$set:{status:body.status,updatedAt:new Date()}});await audit(db,u,action,{id:String(id),status:body.status});await publish(db,['owner','manager'],'task','Task status changed',task.title+' • '+body.status,task.assignedTo);return reply(res,200,{ok:true});
   }
-  if(action==='leave.request'){const date=safeText(body.date,20),reason=safeText(body.reason,260);if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!reason)reject('Enter date and reason.');await C('leave').insertOne({userId:String(u._id),userEmail:u.email,date,reason,status:'pending',createdAt:new Date()});return reply(res,200,{ok:true})}
+  if(action==='leave.request'){const date=safeText(body.date,20),reason=safeText(body.reason,260);if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!reason)reject('Enter date and reason.');await C('leave').insertOne({userId:String(u._id),userEmail:u.email,date,reason,status:'pending',createdAt:new Date()});await publish(db,['owner','manager'],'leave','Leave awaiting approval',u.name+' requested leave on '+date);return reply(res,200,{ok:true})}
   if(action==='leave.list'){const query=['owner','manager'].includes(u.role)?{}:{userId:String(u._id)};const rows=await C('leave').find(query).sort({createdAt:-1}).limit(100).toArray();return reply(res,200,{leave:rows.map(x=>({...x,id:String(x._id),_id:undefined}))})}
-  if(action==='leave.review'){let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid leave ID')}if(!['approved','declined'].includes(body.status))reject('Invalid approval');const rec=await C('leave').findOne({_id:id});if(!rec||rec.status!=='pending'||rec.userId===String(u._id))reject('Cannot approve this request.',409);await C('leave').updateOne({_id:id},{$set:{status:body.status,reviewedBy:u.email,reviewedAt:new Date()}});await audit(db,u,action,{id:String(id),status:body.status});return reply(res,200,{ok:true})}
+  if(action==='leave.review'){let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid leave ID')}if(!['approved','declined'].includes(body.status))reject('Invalid approval');const rec=await C('leave').findOne({_id:id});if(!rec||rec.status!=='pending'||rec.userId===String(u._id))reject('Cannot approve this request.',409);await C('leave').updateOne({_id:id},{$set:{status:body.status,reviewedBy:u.email,reviewedAt:new Date()}});await audit(db,u,action,{id:String(id),status:body.status});await publish(db,['owner','manager'],'leave','Leave reviewed','Leave '+body.status+' for '+rec.userEmail,rec.userEmail);return reply(res,200,{ok:true})}
   if(action==='closing.confirm'){const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10);await C('closing').updateOne({shift,userId:String(u._id)},{$set:{shift,userId:String(u._id),tabletCharging:body.tabletCharging===true,notes:safeText(body.notes,260),updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{shift});return reply(res,200,{ok:true})}
   if(action==='reports.summary'){
    const [openOrders,unmatched,openCalls,openTasks,pendingLeave,stockLow]=await Promise.all([C('orders').countDocuments({status:{$nin:['served','cancelled']}}),C('orders').countDocuments({billingStatus:'unmatched'}),C('calls').countDocuments({status:{$ne:'done'}}),C('tasks').countDocuments({status:{$ne:'done'}}),C('leave').countDocuments({status:'pending'}),C('stock').countDocuments({quantity:{$lte:2}})]);
