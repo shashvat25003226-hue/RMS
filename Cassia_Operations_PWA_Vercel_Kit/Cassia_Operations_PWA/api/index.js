@@ -29,7 +29,8 @@ async function relayToRender(req,res){
   if(!['GET','POST'].includes(req.method))return reply(res,405,{error:'Method not allowed'});
   try{
     const data=typeof req.body==='string'?req.body:JSON.stringify(req.body||{});
-    const response=await fetch(target.origin+'/api',{method:req.method,headers:{'Content-Type':'application/json',Origin:expected,Cookie:String(req.headers.cookie||'')},body:req.method==='POST'?data:undefined,signal:AbortSignal.timeout(13000)});
+    const healthQuery=req.method==='GET'&&String(req.url||'').includes('health=ready')?'?health=ready':'';
+    const response=await fetch(target.origin+'/api'+healthQuery,{method:req.method,headers:{'Content-Type':'application/json',Origin:expected,Cookie:String(req.headers.cookie||'')},body:req.method==='POST'?data:undefined,signal:AbortSignal.timeout(13000)});
     if(!(response.headers.get('content-type')||'').includes('application/json'))throw Error('Upstream is not JSON');
     const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('Set-Cookie',cookie);
     return reply(res,response.status,await response.json());
@@ -37,7 +38,21 @@ async function relayToRender(req,res){
 }
 export default async function handler(req,res){
  if(process.env.RENDER_API_ORIGIN)return relayToRender(req,res);
- if(req.method==='GET')return reply(res,200,{ok:true,name:'Cassia Operations API',configured:!!process.env.MONGODB_URI});
+ if(req.method==='GET'){
+   const health=new URL(req.url||'/api','http://localhost').searchParams.get('health');
+   if(health==='ready'){
+     try{
+       const db=await database();
+       await db.command({ping:1});
+       const accounts=await db.collection('users').estimatedDocumentCount();
+       return reply(res,200,{ok:true,database:'connected',accountsInitialized:accounts>0});
+     }catch(error){
+       console.error('Database readiness failed:',error.message);
+       return reply(res,503,{ok:false,database:'unavailable'});
+     }
+   }
+   return reply(res,200,{ok:true,name:'Cassia Operations API'});
+ }
  if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'});
  if(req.headers['content-type']?.split(';')[0]!=='application/json')return reply(res,415,{error:'JSON body required'});
  const origin=req.headers.origin;const host=req.headers.host;
