@@ -12,7 +12,7 @@ export async function ensureIndexes(db){
     ['otps',[{key:{id:1},unique:true},{key:{expires:1},expireAfterSeconds:0}]],
     ['orders',[{key:{idempotencyKey:1},unique:true},{key:{orderId:1},unique:true},{key:{trackHash:1},unique:true}]],
     ['tables',[{key:{number:1},unique:true}]],['calls',[{key:{table:1,status:1}}]],['stock',[{key:{name:1},unique:true}]],
-    ['tasks',[{key:{status:1,assignedTo:1}}]],['rate_limits',[{key:{expires:1},expireAfterSeconds:0}]],['audit',[{key:{createdAt:-1}}]
+    ['tasks',[{key:{status:1,assignedTo:1}}]],['rate_limits',[{key:{expires:1},expireAfterSeconds:0}]],['audit',[{key:{createdAt:-1}}]]
   ];
   await Promise.all(specs.flatMap(([name,indexes])=>indexes.map(idx=>db.collection(name).createIndex(idx.key,idx).catch(()=>{}))));
 }
