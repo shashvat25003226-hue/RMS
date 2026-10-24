@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 export const roles=['owner','manager','chef','waiter','reception'];
 export const orderStatuses=['sent','received','preparing','ready','served','cancelled'];
 export const allowedActions={
-  'users.create':['owner'],'users.list':['owner','manager'],
+  'users.create':['owner'],'users.list':['owner','manager'],'users.update':['owner'],'users.reset_password':['owner'],
   'tables.list':['owner','manager','chef','waiter','reception'],'tables.provision':['owner','manager'],
   'orders.list':['owner','manager','chef','waiter','reception'],'orders.create':['owner','manager','waiter'],
   'orders.ack':['owner','manager','chef'],'orders.prepare':['owner','manager','chef'],'orders.ready':['owner','manager','chef'],
