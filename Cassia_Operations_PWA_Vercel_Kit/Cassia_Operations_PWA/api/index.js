@@ -62,6 +62,23 @@ export default async function handler(req,res){
  try{
   const db=await database();
   if(!globalThis.__cassiaIndexes){globalThis.__cassiaIndexes=ensureIndexes(db)}await globalThis.__cassiaIndexes;
+  if(action==='auth.bootstrap'){
+   await rateLimit(db,'owner-setup-ip:'+ipOf(req),6,30*60000);
+   const configured=String(process.env.OWNER_SETUP_TOKEN||'');
+   const supplied=String(body.setupToken||'');
+   if(configured.length<32)reject('First-owner setup is not enabled. Set OWNER_SETUP_TOKEN in the Render environment.',403);
+   if(supplied.length<32||supplied.length>256||!secureEqual(sha(supplied),sha(configured)))return reply(res,403,{error:'Setup token is invalid.'});
+   const name=safeText(body.name,80),email=assertEmail(body.email),password=String(body.password||'');
+   if(name.length<2||password.length<12||password.length>256)reject('Enter a name and a password of at least 12 characters.');
+   if(await db.collection('users').findOne({role:'owner'}))return reply(res,409,{error:'An owner already exists. Setup cannot be repeated.'});
+   // Database uniqueness prevents two concurrent requests from creating multiple owners.
+   await db.collection('users').createIndex({role:1},{unique:true,partialFilterExpression:{role:'owner'}});
+   try{
+     await db.collection('users').insertOne({name,email,role:'owner',passwordHash:await passwordHash(password),active:true,mustRotatePassword:false,createdAt:new Date()});
+   }catch(error){if(error.code===11000)return reply(res,409,{error:'Owner setup was already completed or that email exists.'});throw error}
+   await audit(db,null,'owner.bootstrap',{email});
+   return reply(res,201,{created:true,message:'Owner account created. Remove OWNER_SETUP_TOKEN from Render now, and sign in with your new password.'});
+  }
   if(action==='auth.start'){
    await rateLimit(db,'login-ip:'+ipOf(req),14,15*60000);
    const email=assertEmail(body.email),pass=String(body.password||'');
