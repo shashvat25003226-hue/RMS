@@ -17,12 +17,31 @@ function assertTable(v){const n=Number(v);if(!Number.isInteger(n)||n<1||n>150)re
 function assertItems(items){if(!Array.isArray(items)||!items.length||items.length>40)reject('Add at least one menu item.');return items.map(i=>{const name=safeText(i.name,120),qty=Number(i.qty);if(!name||!Number.isInteger(qty)||qty<1||qty>50)reject('Check order item and quantity.');return {name,qty,note:safeText(i.note,240)}})}
 async function userFromCookie(db,req){const token=cookies(req).cassia_sid;if(!token||!(/^[a-f0-9]{64}$/.test(token)))return null;const s=await db.collection('sessions').findOne({hash:sha(token),expires:{$gt:new Date()}});if(!s)return null;const u=await db.collection('users').findOne({_id:s.userId,active:true});return u||null}
 async function audit(db,user,action,data){await db.collection('audit').insertOne({actor:user?String(user._id):'guest',action,details:data||{},createdAt:new Date()});}
+async function relayToRender(req,res){
+  const expected=process.env.APP_ORIGIN||'https://cassiams.vercel.app';
+  const requestOrigin=String(req.headers.origin||'');
+  if(requestOrigin&&requestOrigin!==expected)return reply(res,403,{error:'Cross-origin request denied'});
+  let target;
+  try{
+    target=new URL(process.env.RENDER_API_ORIGIN);
+    if(target.protocol!=='https:'||!target.hostname.endsWith('.onrender.com')||target.username||target.password||target.pathname!=='/'||target.search||target.hash)throw Error('Invalid Render origin');
+  }catch{return reply(res,503,{error:'Backend origin not configured correctly'})}
+  if(!['GET','POST'].includes(req.method))return reply(res,405,{error:'Method not allowed'});
+  try{
+    const data=typeof req.body==='string'?req.body:JSON.stringify(req.body||{});
+    const response=await fetch(target.origin+'/api',{method:req.method,headers:{'Content-Type':'application/json',Origin:expected,Cookie:String(req.headers.cookie||'')},body:req.method==='POST'?data:undefined,signal:AbortSignal.timeout(13000)});
+    if(!(response.headers.get('content-type')||'').includes('application/json'))throw Error('Upstream is not JSON');
+    const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('Set-Cookie',cookie);
+    return reply(res,response.status,await response.json());
+  }catch(error){console.error('Cassia backend relay:',error.message);return reply(res,503,{error:'Backend unavailable. Please retry.'})}
+}
 export default async function handler(req,res){
+ if(!process.env.MONGODB_URI&&process.env.RENDER_API_ORIGIN)return relayToRender(req,res);
  if(req.method==='GET')return reply(res,200,{ok:true,name:'Cassia Operations API',configured:!!process.env.MONGODB_URI});
  if(req.method!=='POST')return reply(res,405,{error:'Method not allowed'});
  if(req.headers['content-type']?.split(';')[0]!=='application/json')return reply(res,415,{error:'JSON body required'});
  const origin=req.headers.origin;const host=req.headers.host;
- if(origin){let parsed;try{parsed=new URL(origin)}catch(_){return reply(res,403,{error:'Invalid origin'})}if(parsed.host!==host)return reply(res,403,{error:'Cross-origin requests are not allowed'})}
+ if(origin){let parsed;try{parsed=new URL(origin)}catch(_){return reply(res,403,{error:'Invalid origin'})}if(parsed.host!==host&&parsed.origin!==process.env.APP_ORIGIN)return reply(res,403,{error:'Cross-origin requests are not allowed'})}
  let body=req.body;try{if(typeof body==='string')body=JSON.parse(body);if(!body||typeof body!=='object'||Array.isArray(body))throw Error();if(JSON.stringify(body).length>25000)reject('Request too large',413)}catch(e){return reply(res,e.status||400,{error:'Invalid JSON request'})}
  const action=String(body.action||'');
  try{
@@ -38,7 +57,7 @@ export default async function handler(req,res){
    await db.collection('otps').deleteMany({userId:user._id});
    await db.collection('otps').insertOne({id,userId:user._id,hash:otpDigest(id,code),expires:new Date(Date.now()+10*60000),attempts:0});
    if(demoOtpEnabled())return reply(res,200,{step:'otp',challenge:id,demoOnly:true,demoCode:code,message:'CLIENT DEMO ONLY: This is not email verification.'});
-   try{await sendOtp(email,code)}catch(e){await db.collection('otps').deleteOne({id});console.error('OTP send unavailable:',e.message);return reply(res,503,{error:'Email delivery is unavailable. Check Mailjet configuration or retry.'})}
+   try{await sendOtp(email,code)}catch(e){await db.collection('otps').deleteOne({id});console.error('OTP send unavailable:',e.message);return reply(res,503,{error:'Email delivery is unavailable. Check Resend configuration or retry.'})}
    return reply(res,200,{step:'otp',challenge:id,message:'We emailed your one-time sign-in code. It expires in 10 minutes.'});
   }
   if(action==='auth.verify'){
