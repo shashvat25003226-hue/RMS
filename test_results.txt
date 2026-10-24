@@ -1,0 +1,72 @@
+
+> cassia-operations-pwa@2.0.0 check
+> node --check api/index.js && node --check public/app.js && node --check lib/core.js && node --test tests/*.test.mjs
+
+TAP version 13
+# Subtest: one-use setup link stores only a hash and expires after 30 minutes
+ok 1 - one-use setup link stores only a hash and expires after 30 minutes
+  ---
+  duration_ms: 2.157715
+  type: 'test'
+  ...
+# Subtest: setup token redeemed exactly once, activates account and expires all others
+ok 2 - setup token redeemed exactly once, activates account and expires all others
+  ---
+  duration_ms: 48.212925
+  type: 'test'
+  ...
+# Subtest: OTP HMAC requires session secret; does not store plaintext
+ok 3 - OTP HMAC requires session secret; does not store plaintext
+  ---
+  duration_ms: 0.720754
+  type: 'test'
+  ...
+# Subtest: Resend request uses Bearer authentication and refuses unsuccessful API response
+ok 4 - Resend request uses Bearer authentication and refuses unsuccessful API response
+  ---
+  duration_ms: 1.233845
+  type: 'test'
+  ...
+# Subtest: password link is only HTTPS in production and contains private token
+ok 5 - password link is only HTTPS in production and contains private token
+  ---
+  duration_ms: 0.692321
+  type: 'test'
+  ...
+# Subtest: role gates prevent waiter owner access
+ok 6 - role gates prevent waiter owner access
+  ---
+  duration_ms: 0.616828
+  type: 'test'
+  ...
+# Subtest: kitchen only advances in order
+ok 7 - kitchen only advances in order
+  ---
+  duration_ms: 0.140652
+  type: 'test'
+  ...
+# Subtest: password scrypt verification
+ok 8 - password scrypt verification
+  ---
+  duration_ms: 125.67938
+  type: 'test'
+  ...
+# Subtest: private tracking data excluded
+ok 9 - private tracking data excluded
+  ---
+  duration_ms: 0.38563
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 184.137334
+BROWSER PASS 390 orders->kitchen, no overflow, no JS errors
+BROWSER PASS 320 orders->kitchen, no overflow, no JS errors
+BROWSER PASS 1280 orders->kitchen, no overflow, no JS errors
+BROWSER PASS: mobile password form, password match error, successful simulated submit, no JS errors
