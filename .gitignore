@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+*.log
+*.private.json
+*.pem
+*.key
+credentials/
+secrets/
+.vercel/
+coverage/
