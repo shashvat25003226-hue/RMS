@@ -185,7 +185,21 @@ function renderOrders(){
 }
 function orderTable(){return orders.length?`<div class="table-wrap"><table class="data-table"><thead><tr><th>Order</th><th>Table / Guest</th><th>Items</th><th>Kitchen</th><th>Petpooja</th><th>Action</th></tr></thead><tbody>${orders.map(o=>`<tr><td><strong>${escapeHTML(o.orderId)}</strong><br><span class="muted small">${fmt(o.createdAt)}</span></td><td>${o.table}${o.customerName?`<div class="muted small">${escapeHTML(o.customerName)}</div>`:''}</td><td>${escapeHTML(o.items.map(i=>i.qty+'× '+i.name).join(', '))}</td><td>${badge(o.status)}</td><td><span class="muted small">${escapeHTML(billingLabel(o.billingStatus))}</span></td><td><div class="row-actions">${['owner','manager','waiter'].includes(user.role)&&o.status==='ready'?`<button class="mini-btn" data-stage="orders.serve" data-id="${escapeHTML(o.orderId)}">Mark served</button>`:''}${['owner','manager','reception'].includes(user.role)?`<button class="mini-btn" data-reconcile="${escapeHTML(o.orderId)}">Match bill</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`:empty('No tickets yet. Add your first order.')}
 function renderKitchen(){const parts=[['sent','Incoming — awaiting receipt'],['received','Acknowledged'],['preparing','In preparation'],['ready','Ready for pickup']];return header('Kitchen board','Order receipt is a separate, deliberate action by the kitchen.',`<button class="secondary" data-refresh>↻ Refresh tickets</button>`)+`<div class="kanban" style="grid-template-columns:repeat(2,minmax(0,1fr))">${parts.map(([status,title])=>`<div class="kanban-col"><div class="kanban-title"><span>${title}</span>${orders.filter(o=>o.status===status).length}</div>${orders.filter(o=>o.status===status).map(o=>`<div class="ticket"><div class="ticket-top"><strong>${escapeHTML(o.orderId)} · Table ${o.table}</strong>${badge(o.status)}</div><ul>${o.items.map(i=>`<li>${i.qty} × ${escapeHTML(i.name)} ${i.note?`<em>· ${escapeHTML(i.note)}</em>`:''}</li>`).join('')}</ul>${o.notes?`<p>Note: ${escapeHTML(o.notes)}</p>`:''}<div class="btn-row">${status==='sent'?`<button class="mini-btn" data-stage="orders.ack" data-id="${escapeHTML(o.orderId)}">✓ Kitchen received</button>`:status==='received'?`<button class="mini-btn" data-stage="orders.prepare" data-id="${escapeHTML(o.orderId)}">Start preparing →</button>`:status==='preparing'?`<button class="mini-btn" data-stage="orders.ready" data-id="${escapeHTML(o.orderId)}">Mark ready ✓</button>`:'<span class="pill green">Awaiting waiter pickup</span>'}</div></div>`).join('')||empty('No tickets here.')}</div>`).join('')}</div>`}
-function renderCalls(){return header('Table requests','Respond calmly and close each request only after helping.',`<button class="secondary" data-refresh>↻ Check requests</button>`)+`<div class="order-grid">${calls.map(c=>`<div class="order-card"><div class="panel-head"><span class="eyebrow ink">TABLE ${c.table}</span>${badge(c.status)}</div><h3>${({'order':'Ready to order','help':'Guest needs help','bill':'Bill request','urgent':'Urgent assistance'})[c.type]||escapeHTML(c.type)}</h3><p>Requested ${fmt(c.createdAt)}</p><div class="btn-row">${c.status==='open'?`<button class="primary" data-call-change="calls.claim" data-id="${c.id}">I'll handle it →</button>`:`<button class="secondary" data-call-change="calls.done" data-id="${c.id}">Done ✓</button>`}</div></div>`).join('')||empty('No open table requests. Enjoy the calm!')}</div>`}
+function renderCalls(){
+ const waiter=user.role==='waiter',manager=['owner','manager'].includes(user.role);
+ const assigned=assignees.filter(x=>x.role==='waiter');
+ const urgent=calls.filter(x=>x.type==='urgent'&&x.status==='open').length;
+ return header('Table service',waiter?'Handle requests from the dining floor. Mark complete after speaking with the guest.':manager?'Monitor and dispatch dining floor calls to active waiters.':'Reception monitors requests, but does not leave its desk to handle floor calls.','<button class="secondary" data-refresh>↻ Refresh requests</button>')+
+  (urgent?'<div class="warning" role="alert">'+urgent+' urgent request(s) need an available waiter now.</div>':'')+
+  '<div class="order-grid">'+(calls.map(c=>{
+   const mine=c.claimedBy===user.id;
+   const help=({order:'Ready to order',help:'Service assistance',bill:'Guest requests bill',urgent:'Urgent assistance'})[c.type]||escapeHTML(c.type);
+   const age=Math.max(0,Math.floor((Date.now()-new Date(c.createdAt).getTime())/60000));
+   const status=c.status==='claimed'?'Assigned to waiter':age>3?'Waiting '+age+' min':'Waiting for response';
+   const ops=waiter?(c.status==='open'?'<button class="primary" data-call-change="calls.claim" data-id="'+escapeHTML(c.id)+'">Take request →</button>':mine?'<button class="primary" data-call-change="calls.done" data-id="'+escapeHTML(c.id)+'">Guest helped ✓</button>':'<span class="pill blue">Another waiter is attending</span>'):manager&&c.status==='open'?'<button class="secondary" data-dispatch="'+escapeHTML(c.id)+'">Assign waiter →</button>':'<span class="pill blue">'+(c.status==='claimed'?'Waiter assigned':'Waiting for waiter')+'</span>';
+   return '<article class="order-card call-card '+(c.type==='urgent'?'call-urgent':'')+'"><div class="panel-head"><span class="eyebrow ink">TABLE '+Number(c.table)+'</span>'+badge(c.status)+'</div><h3>'+help+'</h3><p class="muted small">'+status+' · '+fmt(c.createdAt)+'</p><div class="btn-row">'+ops+'</div></article>';
+  }).join('')||empty('No pending requests. Guests can reach the team using their table QR code.'))+'</div>';
+}
 function renderStock(){
  const sample=(readiness.items||[]),ready=sample.filter(x=>x.canPrepare).length;
  return header('Kitchen inventory','Record real ingredient movements separately from the recipe-readiness demonstration.','<button class="primary" data-new="stock">＋ Record stock</button>')+
@@ -274,7 +288,9 @@ function attachActions(){
  $$('[data-go]').forEach(b=>b.onclick=()=>switchPage(b.dataset.go));$$('[data-new]').forEach(b=>b.onclick=()=>dialogFor(b.dataset.new));$$('[data-refresh]').forEach(b=>b.onclick=()=>load());
  $$('[data-stage]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await request(b.dataset.stage,{orderId:b.dataset.id});toast('Order updated.');load()}catch(e){toast(e.message);b.disabled=false}});
  $$('[data-reconcile]').forEach(b=>b.onclick=()=>{const id=b.dataset.reconcile;openDialog('Petpooja bill reconciliation',`<form id="reconcileForm" class="form-stack"><p>For Cassia order <strong>${escapeHTML(id)}</strong></p><label>Bill status<select name="billingStatus"><option value="matched">Matched</option><option value="needs_review">Needs review</option><option value="unmatched">Unmatched</option></select></label><label>Actual Petpooja bill reference<input name="petpoojaRef" placeholder="Official POS bill number"></label><button class="primary">Save reconciliation</button></form>`);$('#reconcileForm').onsubmit=async e=>{e.preventDefault();try{await request('orders.reconcile',{orderId:id,...formData(e.target)});closeDialog();load()}catch(e){toast(e.message)}}});
- $$('[data-call-change]').forEach(b=>b.onclick=async()=>{try{await request(b.dataset.callChange,{id:b.dataset.id});load()}catch(e){toast(e.message)}});
+ $('[data-call-change]').forEach(b=>b.onclick=async()=>{try{await request(b.dataset.callChange,{id:b.dataset.id});load()}catch(e){toast(e.message)}});
+ $('[data-dispatch]').forEach(b=>b.onclick=()=>{const options=assignees.filter(x=>x.role==='waiter');if(!options.length){toast('No active waiters. The manager must assign an available floor staff member.');return;}openDialog('Dispatch to waiter','<form id="dispatchForm" class="form-stack"><p>Select the waiter responsible for helping this table. Reception continues managing guests at the desk.</p><label>Available waiter<select name="email">'+options.map(x=>'<option value="'+escapeHTML(x.email)+'">'+escapeHTML(x.name)+'</option>').join('')+'</select></label><button class="primary">Assign request</button></form>');$('#dispatchForm').onsubmit=async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;try{await request('calls.assign',{id:b.dataset.dispatch,email:e.target.elements.email.value});closeDialog();toast('Guest request assigned.');await load()}catch(err){toast(err.message);btn.disabled=false}}});
+
  $$('[data-task]').forEach(b=>b.onclick=async()=>{try{await request('tasks.update',{id:b.dataset.task,status:b.dataset.state});load()}catch(e){toast(e.message)}});
  $$('[data-leave]').forEach(b=>b.onclick=async()=>{try{await request('leave.review',{id:b.dataset.leave,status:b.dataset.state});load()}catch(e){toast(e.message)}});
  if($('#closingForm'))$('#closingForm').onsubmit=async e=>{e.preventDefault();try{const d=formData(e.target);await request('closing.confirm',{...d,tabletCharging:e.target.elements.tabletCharging.checked});toast('Handover submitted.');await load()}catch(err){toast(err.message)}};
@@ -324,7 +340,28 @@ function attachActions(){
  window.CassiaExtra?.bind({user,request,load,toast,openDialog,closeDialog,imports,attendance,performance,menu,readiness});
  window.CassiaHospitalityUI?.bind({user,request,load,toast,openDialog,closeDialog,bookings});
 }
-async function initGuest(){show('guest');const table=params.get('table'),secret=params.get('key');$('#guestTable').textContent='TABLE '+escapeHTML(table||'');$$('[data-call]').forEach(b=>b.onclick=async()=>{b.disabled=true;$('#guestNotice').textContent='Sending your request…';try{const r=await request('tables.request',{table:Number(table),key:secret,type:b.dataset.call});$('#guestNotice').textContent=r.message}catch(e){$('#guestNotice').textContent=e.message}finally{setTimeout(()=>b.disabled=false,4000)}})}
+async function initGuest(){
+ show('guest');const table=params.get('table'),secret=params.get('key'),notice=$('#guestNotice');
+ $('#guestTable').textContent='TABLE '+escapeHTML(table||'');
+ let timer=null;
+ async function status(silent=false){
+  try{const result=await request('tables.status',{table:Number(table),key:secret});
+   const labels={idle:'Your table is ready. Tap an option below whenever you need us.',open:'Your request is in the queue. A waiter will come to your table.',claimed:'A waiter has accepted the request and is on the way.'};
+   if(!silent||result.status!=='idle')notice.textContent=labels[result.status]||'A team member can help you.';
+   notice.dataset.status=result.status;
+  }catch(error){if(!silent)notice.textContent=error.message}
+ }
+ $('#guestCheckStatus').onclick=()=>status(false);
+ $$('[data-call]').forEach(b=>b.onclick=async()=>{
+  const siblings=$$('[data-call]');siblings.forEach(x=>x.disabled=true);
+  notice.textContent='Sending your request…';
+  try{const r=await request('tables.request',{table:Number(table),key:secret,type:b.dataset.call});notice.textContent=r.message||'Request sent.';notice.dataset.status=r.status||'open'}
+  catch(err){notice.textContent=err.message}
+  finally{setTimeout(()=>siblings.forEach(x=>x.disabled=false),1600)}
+ });
+ await status(true);timer=setInterval(()=>{if(document.visibilityState==='visible')status(true)},16000);
+ window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+}
 async function initTracking(){show('tracking');const token=params.get('track');async function refresh(){try{const r=await request('orders.track',{token});const o=r.order;const sequence=['sent','received','preparing','ready','served'];$('#trackingBox').innerHTML=`<p><strong>${escapeHTML(o.id)}</strong> · Table ${o.table} · ${badge(o.status)}</p><div class="status-timeline">${sequence.map((s,i)=>`<div class="status-step ${sequence.indexOf(o.status)>=i?'current':''}">${['Sent to restaurant server','Kitchen has acknowledged','Cooking with care','Ready for collection','Served with love'][i]}</div>`).join('')}</div><p class="muted">${escapeHTML(r.note||'Last updated '+new Date(o.updatedAt).toLocaleTimeString('en-IN'))}</p>`}catch(e){$('#trackingBox').textContent=e.message}}$('#trackRefresh').onclick=refresh;refresh()}
 function enableTheme(){try{if(localStorage.getItem('cassia-ops-theme')==='dark')document.body.classList.add('dark')}catch(_){}$('#themeToggle').onclick=()=>{document.body.classList.toggle('dark');try{localStorage.setItem('cassia-ops-theme',document.body.classList.contains('dark')?'dark':'light')}catch(_){}}}
 async function init(){enableTheme();if(params.has('table')&&params.has('key')&&!preview){initGuest();return}if(params.has('track')&&!preview){initTracking();return}
