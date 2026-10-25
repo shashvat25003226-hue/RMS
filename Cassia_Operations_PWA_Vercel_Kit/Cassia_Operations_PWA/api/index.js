@@ -207,6 +207,12 @@ export default async function handler(req,res){
    await audit(db,u,action,{target:id,email:target.email});
    return reply(res,200,{ok:true,email:target.email,temporaryPassword:temporary,warning:'Copy once and send privately; the previous password no longer works.'});
   }
+  if(action==='customers.lookup'){
+    await rateLimit(db,'guest-search:'+String(u._id),100,10*60000);
+    const phone=mobile(body.phone);
+    const customer=await C('customers').findOne({phone},{projection:{name:1,tier:1}});
+    return reply(res,200,{customer:customer?{name:customer.name,tier:customer.tier||'regular'}:null});
+  }
   if(action==='customers.list'){
    const q=safeText(body.query,60);
    const escaped=q.replace(/[^a-zA-Z0-9 ]/g,'');
