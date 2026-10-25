@@ -201,7 +201,7 @@ function renderCalls(){
    const age=Math.max(0,Math.floor((Date.now()-new Date(c.createdAt).getTime())/60000));
    const status=c.status==='claimed'?'Assigned to waiter':age>3?'Waiting '+age+' min':'Waiting for response';
    const ops=waiter?(c.status==='open'?'<button class="primary" data-call-change="calls.claim" data-id="'+escapeHTML(c.id)+'">Take request →</button>':mine?'<button class="primary" data-call-change="calls.done" data-id="'+escapeHTML(c.id)+'">Guest helped ✓</button>':'<span class="pill blue">Another waiter is attending</span>'):manager&&c.status==='open'?'<button class="secondary" data-dispatch="'+escapeHTML(c.id)+'">Assign waiter →</button>':'<span class="pill blue">'+(c.status==='claimed'?'Waiter assigned':'Waiting for waiter')+'</span>';
-   return '<article class="order-card call-card '+(c.type==='urgent'?'call-urgent':'')+'"><div class="panel-head"><span class="eyebrow ink">TABLE '+Number(c.table)+'</span>'+badge(c.status)+'</div><h3>'+help+'</h3><p class="muted small">'+status+' · '+fmt(c.createdAt)+'</p><div class="btn-row">'+ops+'</div></article>';
+   return '<article class="order-card call-card '+(c.type==='urgent'?'call-urgent':'')+'"><div class="panel-head"><span class="eyebrow ink">TABLE '+Number(c.table)+'</span>'+badge(c.status)+'</div><h3>'+help+'</h3><p class="muted small">'+status+' · '+fmt(c.createdAt)+'</p>'+(user.role==='reception'&&c.type==='bill'?'<p class="muted small">Prepare the official bill in Petpooja. A waiter will deliver it to the table.</p>':'')+'<div class="btn-row">'+ops+'</div></article>';
   }).join('')||empty('No pending requests. Guests can reach the team using their table QR code.'))+'</div>';
 }
 function renderStock(){
