@@ -12,7 +12,7 @@ export const allowedActions={
   'tasks.list':['owner','manager','chef','waiter','reception'],'tasks.create':['owner','manager','chef'],'tasks.update':['owner','manager','chef','waiter','reception'],
   'leave.request':['owner','manager','chef','waiter','reception'],'leave.list':['owner','manager','chef','waiter','reception'],'leave.review':['owner','manager'],
   'closing.confirm':['owner','manager','chef','waiter','reception'],'closing.list':['owner','manager','chef','waiter','reception'],'closing.assign':['owner','manager'],'reports.summary':['owner','manager'],'menu.list':['owner','manager','chef','waiter','reception'],
-  'menu.update':['owner','manager'],
+  'menu.update':['owner','manager','chef'],
   'audit.list':['owner'],
   'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
   'coupons.issue':['owner','manager'],'coupons.redeem':['owner','manager','reception'],'notifications.list':['owner','manager','chef','waiter','reception'],'notifications.read':['owner','manager','chef','waiter','reception']
