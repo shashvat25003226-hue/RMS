@@ -4,7 +4,7 @@ import {database,ensureIndexes} from '../lib/db.js';
 import {operationalAction} from '../lib/ops.js';
 import {hospitalityAction} from '../lib/hospitality.js';
 import {sendOtp} from '../lib/mail.js';
-import {roles,can,orderStatuses,sha,hex,safeText,validEmail,passwordHash,passwordVerify,otpDigest,secureEqual,advance,restrictedUser,publicOrder} from '../lib/core.js';
+import {roles,can,orderStatuses,sha,hex,safeText,validEmail,passwordHash,passwordVerify,otpDigest,secureEqual,advance,restrictedUser,publicOrder,validShiftDate,indiaDay} from '../lib/core.js';
 const DAY=86400000, SESSION_HOURS=12;
 const demoOtpEnabled=()=>process.env.CLIENT_DEMO_MODE==='true'&&process.env.CLIENT_DEMO_OTP==='true';
 const reply=(res,code,data)=>res.status(code).setHeader('Cache-Control','no-store').json(data);
@@ -295,6 +295,19 @@ export default async function handler(req,res){
    if(!result.matchedCount)reject('Notification not available.',404);
    return reply(res,200,{ok:true});
   }
+
+  if(action==='notifications.read_many'){
+   const ids=Array.isArray(body.ids)?body.ids:[];
+   if(!ids.length||ids.length>30||ids.some(id=>typeof id!=='string'||!/^[a-f0-9]{24}$/i.test(id)))reject('Select up to 30 notifications.',400);
+   const access={$or:[{roles:u.role},{targetEmail:u.email}]};
+   const updated=await C('notifications').updateMany({_id:{$in:[...new Set(ids)].map(x=>new ObjectId(x))},...access},{$addToSet:{readBy:String(u._id)}});
+   return reply(res,200,{ok:true,updated:updated.modifiedCount});
+  }
+  if(action==='notifications.read_all'){
+   const access={$or:[{roles:u.role},{targetEmail:u.email}]};
+   const updated=await C('notifications').updateMany({...access,readBy:{$ne:String(u._id)}},{$addToSet:{readBy:String(u._id)}});
+   return reply(res,200,{ok:true,updated:updated.modifiedCount});
+  }
   if(action==='tables.list'){const data=await C('tables').find({active:true},{projection:{number:1}}).sort({number:1}).toArray();return reply(res,200,{tables:data.map(x=>x.number)})}
   if(action==='tables.provision'){const table=assertTable(body.number),key=hex();await C('tables').updateOne({number:table},{$set:{keyHash:sha(key),active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{table});return reply(res,200,{table,link:`${process.env.APP_ORIGIN||'https://your-domain.vercel.app'}/?table=${table}&key=${key}`,warning:'Print/save this QR URL now. Generating a new one invalidates the previous link.'})}
   if(action==='menu.list'){const items=await C('menu').find({active:{$ne:false}},{projection:{name:1,category:1,available:1,price:1,priceVerified:1,examplePrice:1}}).sort({category:1,name:1}).toArray();return reply(res,200,{items:items.map(i=>({id:String(i._id),name:i.name,category:i.category,available:i.available!==false,price:i.priceVerified===true?i.price:null,priceVerified:i.priceVerified===true,examplePrice:i.priceVerified===true?null:i.examplePrice??null}))})}
@@ -425,15 +438,15 @@ export default async function handler(req,res){
    return reply(res,200,{ok:true,message:'Leave '+body.status+'. Attendo and payroll remain separate systems.'});
   }
   if(action==='closing.list'){
-   const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10);
-   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(shift))reject('Choose a valid date.');
+   const shift=safeText(body.shift,20)||indiaDay();
+   if(!validShiftDate(shift))reject('Choose a valid date.');
    const filter=['owner','manager'].includes(u.role)?{shift}:{shift,assignedTo:u.email};
    const list=await C('closing').find(filter,{projection:{shift:1,assignedTo:1,status:1,tabletCharging:1,notes:1,completedBy:1,updatedAt:1}}).sort({assignedTo:1}).limit(50).toArray();
    return reply(res,200,{handovers:list.map(x=>({id:String(x._id),shift:x.shift,assignedTo:x.assignedTo,status:x.status||'assigned',tabletCharging:x.tabletCharging===true,notes:x.notes||'',completedBy:x.completedBy,updatedAt:x.updatedAt}))});
   }
   if(action==='closing.assign'){
-   const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10),assignedTo=assertEmail(body.assignedTo);
-   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(shift))reject('Choose a valid shift date.');
+   const shift=safeText(body.shift,20)||indiaDay(),assignedTo=assertEmail(body.assignedTo);
+   if(!validShiftDate(shift))reject('Choose a valid shift date.');
    const worker=await C('users').findOne({email:assignedTo,active:true});
    if(!worker||worker.role==='owner')reject('Assign an active manager, kitchen or service employee.',404);
    await C('closing').updateOne({shift,assignedTo},{$setOnInsert:{shift,assignedTo,status:'assigned',tabletCharging:false,createdAt:new Date()},$set:{assignedBy:u.email,updatedAt:new Date()}},{upsert:true});
@@ -442,8 +455,8 @@ export default async function handler(req,res){
    return reply(res,200,{ok:true});
   }
   if(action==='closing.confirm'){
-   const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10);
-   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(shift))reject('Choose a valid shift date.');
+   const shift=safeText(body.shift,20)||indiaDay();
+   if(!validShiftDate(shift))reject('Choose a valid shift date.');
    const result=await C('closing').updateOne({shift,assignedTo:u.email,status:'assigned'},{$set:{status:'completed',tabletCharging:body.tabletCharging===true,notes:safeText(body.notes,260),completedBy:u.email,updatedAt:new Date()}});
    if(!result.matchedCount)reject('No open closing assignment for your account on this date. Ask your manager.',409);
    await audit(db,u,action,{shift});
