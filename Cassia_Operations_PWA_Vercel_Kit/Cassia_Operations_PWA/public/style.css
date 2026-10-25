@@ -184,3 +184,6 @@ select,input,textarea{max-width:100%}
  .menu-price{color:#6a5432}
  .menu-dishes{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+.food-artwork{overflow:hidden;background:#e9ddc6}.food-artwork img{width:100%;height:100%;object-fit:cover;display:block;image-rendering:auto}.attendance-brief{margin-top:16px;margin-bottom:21px}.attendance-brief .btn-row{display:flex;gap:13px;align-items:center;flex-wrap:wrap}.readiness-panel{margin:0 0 17px}.readiness-stats{display:flex;gap:15px;font-size:13px;margin:0 0 10px}.readiness-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:4px 12px;max-height:224px;overflow-y:auto;overscroll-behavior:contain}.readiness-item{display:flex;align-items:center;justify-content:space-between;min-width:0;gap:8px;border-bottom:1px solid var(--line);padding:8px 0;font-size:12px}.readiness-item span:first-child{min-width:0;overflow-wrap:anywhere}.readiness-item .pill{font-size:9px;white-space:nowrap}
+@media(max-width:600px){.readiness-list{grid-template-columns:1fr;max-height:190px}.readiness-stats{flex-wrap:wrap}.attendance-brief{padding:13px}.menu-book .food-artwork img{object-position:center}}
