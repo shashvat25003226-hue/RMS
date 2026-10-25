@@ -13,6 +13,11 @@ export const allowedActions={
   'leave.request':['owner','manager','chef','waiter','reception'],'leave.list':['owner','manager','chef','waiter','reception'],'leave.review':['owner','manager'],
   'closing.confirm':['owner','manager','chef','waiter','reception'],'closing.list':['owner','manager','chef','waiter','reception'],'closing.assign':['owner','manager'],'reports.summary':['owner','manager'],'menu.list':['owner','manager','chef','waiter','reception'],
   'menu.update':['owner','manager','chef'],
+  'imports.preview':['owner','manager','reception'],'imports.commit':['owner','manager','reception'],'imports.list':['owner','manager','reception'],'imports.verify':['owner','manager'],
+  'attendance.list':['owner','manager','chef','waiter','reception'],'attendance.mark':['owner'],'attendance.summary':['owner','manager'],
+  'performance.list':['owner','manager','chef','waiter','reception'],'performance.reward':['owner'],'performance.flag':['owner'],
+  'inventory.readiness':['owner','manager','chef','waiter','reception'],
+  'menu.price':['owner'],
   'audit.list':['owner'],
   'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
   'coupons.issue':['owner','manager'],'coupons.redeem':['owner','manager','reception'],'notifications.list':['owner','manager','chef','waiter','reception'],'notifications.read':['owner','manager','chef','waiter','reception']
