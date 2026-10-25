@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {ObjectId} from 'mongodb';
 import {database,ensureIndexes} from '../lib/db.js';
+import {operationalAction} from '../lib/ops.js';
 import {sendOtp} from '../lib/mail.js';
 import {roles,can,orderStatuses,sha,hex,safeText,validEmail,passwordHash,passwordVerify,otpDigest,secureEqual,advance,restrictedUser,publicOrder} from '../lib/core.js';
 const DAY=86400000, SESSION_HOURS=12;
@@ -140,6 +141,9 @@ export default async function handler(req,res){
   if(action==='users.create'&&u.role!=='owner')reject('Only owner can create staff accounts.',403);
   if(!can(u.role,action))reject('Your role does not have permission for this action.',403);
   const C=name=>db.collection(name);
+  const additional=await operationalAction(action,{db,user:u,body,audit,publish});
+  if(additional)return reply(res,additional.status,additional.data);
+
   if(action==='users.list'){
    const data=await C('users').find({},{projection:{name:1,email:1,role:1,active:1,mustRotatePassword:1,createdAt:1}}).sort({active:-1,role:1,name:1}).toArray();
    return reply(res,200,{users:data.map(x=>({...restrictedUser(x),active:x.active!==false,mustRotatePassword:x.mustRotatePassword===true}))});
@@ -261,7 +265,7 @@ export default async function handler(req,res){
   }
   if(action==='tables.list'){const data=await C('tables').find({active:true},{projection:{number:1}}).sort({number:1}).toArray();return reply(res,200,{tables:data.map(x=>x.number)})}
   if(action==='tables.provision'){const table=assertTable(body.number),key=hex();await C('tables').updateOne({number:table},{$set:{keyHash:sha(key),active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{table});return reply(res,200,{table,link:`${process.env.APP_ORIGIN||'https://your-domain.vercel.app'}/?table=${table}&key=${key}`,warning:'Print/save this QR URL now. Generating a new one invalidates the previous link.'})}
-  if(action==='menu.list'){const items=await C('menu').find({active:{$ne:false}},{projection:{name:1,category:1,available:1}}).sort({category:1,name:1}).toArray();return reply(res,200,{items:items.map(i=>({id:String(i._id),name:i.name,category:i.category,available:i.available!==false}))})}
+  if(action==='menu.list'){const items=await C('menu').find({active:{$ne:false}},{projection:{name:1,category:1,available:1,price:1,priceVerified:1}}).sort({category:1,name:1}).toArray();return reply(res,200,{items:items.map(i=>({id:String(i._id),name:i.name,category:i.category,available:i.available!==false,price:i.priceVerified===true?i.price:null,priceVerified:i.priceVerified===true}))})}
   if(action==='menu.update'){
    const name=safeText(body.name,120),category=safeText(body.category,55);
    if(!name)reject('Choose a menu item.');
