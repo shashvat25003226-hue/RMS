@@ -86,7 +86,7 @@ function renderAlerts(){
  button.textContent=count>9?'9+':String(count);button.classList.toggle('hidden',count===0);
  const list=$('#notificationList');if(!list)return;
  list.innerHTML=notifications.length?notifications.map(n=>'<button class="notification-list-item '+(n.read?'':'unread')+'" data-notice-id="'+escapeHTML(n.id)+'" type="button"><strong>'+escapeHTML(n.title)+'</strong><span>'+escapeHTML(n.body)+'</span><small>'+fmt(n.createdAt)+'</small></button>').join(''):empty('No updates yet. The team is all caught up.');
- $('[data-notice-id]').forEach(b=>b.onclick=async()=>{try{await request('notifications.read',{id:b.dataset.noticeId});const n=notifications.find(x=>x.id===b.dataset.noticeId);if(n)n.read=true;renderAlerts()}catch(err){toast(err.message)}});
+ $$('[data-notice-id]').forEach(b=>b.onclick=async()=>{try{await request('notifications.read',{id:b.dataset.noticeId});const n=notifications.find(x=>x.id===b.dataset.noticeId);if(n)n.read=true;renderAlerts()}catch(err){toast(err.message)}});
 }
 async function pollLive(){
  if(preview||!user||syncBusy||document.visibilityState==='hidden'||!navigator.onLine)return;
@@ -252,14 +252,14 @@ function attachActions(){
    });
  }
 
- if($('#customerSearch'))$('#customerSearch').oninput=e=>{const q=e.target.value.trim().toLowerCase();$('.customer-card').forEach(c=>c.hidden=!c.textContent.toLowerCase().includes(q))};
- $('[data-vip-phone]').forEach(b=>b.onclick=async()=>{
+ if($('#customerSearch'))$('#customerSearch').oninput=e=>{const q=e.target.value.trim().toLowerCase();$$('.customer-card').forEach(c=>c.hidden=!c.textContent.toLowerCase().includes(q))};
+ $$('[data-vip-phone]').forEach(b=>b.onclick=async()=>{
    const tier=b.dataset.tier;
    if(!confirm('Set this guest to '+tier.toUpperCase()+'?'))return;
    b.disabled=true;
    try{await request('customers.vip',{phone:b.dataset.vipPhone,tier});toast('Guest tier updated.');await load()}catch(err){toast(err.message);b.disabled=false}
  });
- $('[data-offer-phone]').forEach(b=>b.onclick=()=>{dialogFor('coupon');if($('#couponForm'))$('#couponForm').elements.phone.value=b.dataset.offerPhone});
+ $$('[data-offer-phone]').forEach(b=>b.onclick=()=>{dialogFor('coupon');if($('#couponForm'))$('#couponForm').elements.phone.value=b.dataset.offerPhone});
  $$('[data-user-password]').forEach(b=>b.onclick=()=>{
    if(user.role!=='owner')return;
    const member=staff.find(x=>x.id===b.dataset.userPassword);if(!member||member.role==='owner')return;
