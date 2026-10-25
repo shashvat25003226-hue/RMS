@@ -346,9 +346,43 @@ export default async function handler(req,res){
    if(!['owner','manager'].includes(u.role)&&task.assignedTo!==u.email)reject('You may update only your own task.',403);
    if(!['open','doing','done'].includes(body.status))reject('Invalid status');await C('tasks').updateOne({_id:id},{$set:{status:body.status,updatedAt:new Date()}});await audit(db,u,action,{id:String(id),status:body.status});await publish(db,['owner','manager'],'task','Task status changed',task.title+' • '+body.status,task.assignedTo);return reply(res,200,{ok:true});
   }
-  if(action==='leave.request'){const date=safeText(body.date,20),reason=safeText(body.reason,260);if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!reason)reject('Enter date and reason.');await C('leave').insertOne({userId:String(u._id),userEmail:u.email,date,reason,status:'pending',createdAt:new Date()});await publish(db,['owner','manager'],'leave','Leave awaiting approval',u.name+' requested leave on '+date);return reply(res,200,{ok:true})}
-  if(action==='leave.list'){const query=['owner','manager'].includes(u.role)?{}:{userId:String(u._id)};const rows=await C('leave').find(query).sort({createdAt:-1}).limit(100).toArray();return reply(res,200,{leave:rows.map(x=>({...x,id:String(x._id),_id:undefined}))})}
-  if(action==='leave.review'){let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid leave ID')}if(!['approved','declined'].includes(body.status))reject('Invalid approval');const rec=await C('leave').findOne({_id:id});if(!rec||rec.status!=='pending'||rec.userId===String(u._id))reject('Cannot approve this request.',409);await C('leave').updateOne({_id:id},{$set:{status:body.status,reviewedBy:u.email,reviewedAt:new Date()}});await audit(db,u,action,{id:String(id),status:body.status});await publish(db,['owner','manager'],'leave','Leave reviewed','Leave '+body.status+' for '+rec.userEmail,rec.userEmail);return reply(res,200,{ok:true})}
+  if(action==='leave.request'){
+   const date=safeText(body.date,10),reason=safeText(body.reason,260),type=safeText(body.type,12)||'cl';
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date+'T12:00:00Z'))||reason.length<5||!['cl','paid'].includes(type))reject('Select a valid leave date, leave type and reason.');
+   if(date<new Date().toISOString().slice(0,10))reject('Past leave cannot be requested. Ask owner to correct attendance.');
+   const overlapping=await C('leave').findOne({userId:String(u._id),date,status:{$in:['pending','approved']}});
+   if(overlapping)reject('An active leave request already exists for this day.',409);
+   if(type==='cl'){
+     const used=await C('leave').countDocuments({userId:String(u._id),type:'cl',status:'approved',date:{$gte:date.slice(0,4)+'-01-01',$lte:date.slice(0,4)+'-12-31'}});
+     if(used>=10)reject('All 10 casual leave days for this year have been used. Request paid leave or speak with the owner.',409);
+   }
+   await C('leave').insertOne({userId:String(u._id),userEmail:u.email,date,reason,type,status:'pending',createdAt:new Date()});
+   await publish(db,['owner','manager'],'leave','Leave approval required',u.name+' requested '+(type==='cl'?'casual':'paid')+' leave on '+date);
+   await audit(db,u,action,{date,type});return reply(res,201,{ok:true,message:'Leave request submitted. Approval does not automatically update Attendo.'});
+  }
+  if(action==='leave.list'){
+   const query=['owner','manager'].includes(u.role)?{}:{userId:String(u._id)};
+   const rows=await C('leave').find(query).sort({createdAt:-1}).limit(500).toArray();
+   return reply(res,200,{leave:rows.map(x=>({...x,id:String(x._id),_id:undefined,type:x.type||'cl'}))});
+  }
+  if(action==='leave.review'){
+   let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid leave ID')}
+   if(!['approved','declined'].includes(body.status))reject('Invalid approval action.');
+   const rec=await C('leave').findOne({_id:id});
+   if(!rec||rec.status!=='pending'||rec.userId===String(u._id))reject('Leave request unavailable or self-approval forbidden.',409);
+   const employee=await C('users').findOne({_id:new ObjectId(rec.userId)});
+   if(!employee||employee.active===false)reject('The employee account is unavailable.',404);
+   if(employee.highPerformer===true&&u.role!=='owner')reject('Owner approval is required for a protected high-performing employee.',403);
+   if(rec.type==='cl'&&body.status==='approved'){
+     const used=await C('leave').countDocuments({userId:rec.userId,type:'cl',status:'approved',date:{$gte:rec.date.slice(0,4)+'-01-01',$lte:rec.date.slice(0,4)+'-12-31'}});
+     if(used>=10)reject('This employee already used all ten casual leave days.',409);
+   }
+   const changed=await C('leave').updateOne({_id:id,status:'pending'},{$set:{status:body.status,reviewedBy:u.email,reviewedAt:new Date()}});
+   if(!changed.modifiedCount)reject('Another manager already reviewed this request.',409);
+   await audit(db,u,action,{id:String(id),status:body.status,leaveType:rec.type||'cl'});
+   await publish(db,[employee.role],'leave','Leave '+body.status,rec.date+' • '+(rec.type||'cl').toUpperCase()+' leave',employee.email);
+   return reply(res,200,{ok:true,message:'Leave '+body.status+'. Attendo and payroll remain separate systems.'});
+  }
   if(action==='closing.list'){
    const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10);
    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(shift))reject('Choose a valid date.');
