@@ -102,13 +102,15 @@ function renderAlerts(){
   const b=$('#'+id);if(b){b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))}
  }
  const list=$('#notificationList');if(!list)return;
+ const preserveScroll=list.scrollTop;
  const shown=notificationView==='unread'?unread:notifications,groups=new Map();
  for(const n of shown){const k=[n.kind,n.title,n.body].map(x=>String(x||'').trim().toLowerCase()).join('|'),g=groups.get(k);
    if(g){g.ids.push(n.id);g.unread+=Number(!n.read)}else groups.set(k,{item:n,ids:[n.id],unread:Number(!n.read)})}
  const entries=[...groups.values()].slice(0,18);
  list.innerHTML=entries.length?entries.map(g=>'<button class="notification-list-item '+(g.unread?'unread':'')+'" data-notice-ids="'+escapeHTML(g.ids.join(','))+'" type="button"><span class="notice-heading"><strong>'+escapeHTML(g.item.title)+'</strong>'+(g.ids.length>1?'<span class="notice-repeat">×'+g.ids.length+'</span>':'')+'</span><span>'+escapeHTML(g.item.body)+'</span><small>'+fmt(g.item.createdAt)+(g.unread?' · Unread':'')+'</small></button>').join(''):'<div class="notice-empty"><span>✓</span><strong>'+(notificationView==='unread'?'All caught up':'No activity yet')+'</strong><p>New service updates will appear here.</p></div>';
  if(groups.size>18)list.innerHTML+='<p class="muted tiny">Showing recent activity groups. Older records remain in the system log.</p>';
- $$('[data-notice-ids]',list).forEach(button=>button.onclick=async()=>{
+ list.scrollTop=preserveScroll;
+ $('[data-notice-ids]',list).forEach(button=>button.onclick=async()=>{
   const ids=button.dataset.noticeIds.split(',');button.disabled=true;
   try{for(let i=0;i<ids.length;i+=30)await request('notifications.read_many',{ids:ids.slice(i,i+30)});
     const seen=new Set(ids);notifications.forEach(n=>{if(seen.has(n.id))n.read=true});renderAlerts();
@@ -145,8 +147,8 @@ function startLive(){
    const toggleDrawer=(open)=>{const drawer=$('#notificationDrawer');drawer.classList.toggle('hidden',!open);$('#alertToggle').setAttribute('aria-expanded',String(open));if(open)renderAlerts()};
    $('#alertToggle').addEventListener('click',()=>toggleDrawer($('#notificationDrawer').classList.contains('hidden')));
    $('#closeNotifications')?.addEventListener('click',()=>toggleDrawer(false));
-   $('#noticeUnread')?.addEventListener('click',()=>{notificationView='unread';renderAlerts()});
-   $('#noticeAll')?.addEventListener('click',()=>{notificationView='all';renderAlerts()});
+   $('#noticeUnread')?.addEventListener('click',()=>{notificationView='unread';$('#notificationList').scrollTop=0;renderAlerts()});
+   $('#noticeAll')?.addEventListener('click',()=>{notificationView='all';$('#notificationList').scrollTop=0;renderAlerts()});
    $('#markAllNotifications')?.addEventListener('click',async e=>{const button=e.currentTarget;button.disabled=true;try{await request('notifications.read_all');notifications.forEach(n=>n.read=true);renderAlerts();toast('All team updates marked as read.')}catch(error){toast(error.message);button.disabled=false}});
    document.addEventListener('click',event=>{if(!$('#notificationDrawer')?.classList.contains('hidden')&&!event.target.closest('.notify-host'))toggleDrawer(false)});
    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#notificationDrawer')?.classList.contains('hidden'))toggleDrawer(false)});
