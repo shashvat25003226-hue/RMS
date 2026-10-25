@@ -4,6 +4,7 @@ import {database,ensureIndexes} from '../lib/db.js';
 import {operationalAction} from '../lib/ops.js';
 import {hospitalityAction} from '../lib/hospitality.js';
 import {sendOtp} from '../lib/mail.js';
+import {recordIncident,diagnosticsSnapshot} from '../lib/diagnostics.js';
 import {roles,can,orderStatuses,sha,hex,safeText,validEmail,passwordHash,passwordVerify,otpDigest,secureEqual,advance,restrictedUser,publicOrder,validShiftDate,indiaDay} from '../lib/core.js';
 const DAY=86400000, SESSION_HOURS=12;
 const demoOtpEnabled=()=>process.env.CLIENT_DEMO_MODE==='true'&&process.env.CLIENT_DEMO_OTP==='true';
@@ -91,12 +92,12 @@ export default async function handler(req,res){
    const email=assertEmail(body.email),pass=String(body.password||'');
    await rateLimit(db,'login-email:'+email,6,15*60000);
    const user=await db.collection('users').findOne({email,active:true});
-   if(!user||!await passwordVerify(pass,user.passwordHash))return reply(res,401,{error:'Email or password is incorrect.'});
+   if(!user||!await passwordVerify(pass,user.passwordHash)){await recordIncident(db,action,401);return reply(res,401,{error:'Email or password is incorrect.'})}
    const id=hex(20),code=String(crypto.randomInt(0,1000000)).padStart(6,'0');
    await db.collection('otps').deleteMany({userId:user._id});
    await db.collection('otps').insertOne({id,userId:user._id,hash:otpDigest(id,code),expires:new Date(Date.now()+10*60000),attempts:0});
    if(demoOtpEnabled())return reply(res,200,{step:'otp',challenge:id,demoOnly:true,demoCode:code,message:'CLIENT DEMO ONLY: This is not email verification.'});
-   try{await sendOtp(email,code)}catch(e){await db.collection('otps').deleteOne({id});console.error('OTP send unavailable:',e.message);return reply(res,503,{error:'Email delivery is unavailable. Check Resend configuration or retry.'})}
+   try{await sendOtp(email,code)}catch(e){await db.collection('otps').deleteOne({id});console.error('OTP send unavailable:',e.message);await recordIncident(db,action,503);return reply(res,503,{error:'Email delivery is unavailable. Check Resend configuration or retry.'})}
    return reply(res,200,{step:'otp',challenge:id,message:'We emailed your one-time sign-in code. It expires in 10 minutes.'});
   }
   if(action==='auth.verify'){
@@ -104,12 +105,78 @@ export default async function handler(req,res){
    const id=safeText(body.challenge,60),code=String(body.code||'');
    if(!/^[a-f0-9]{40}$/.test(id)||!/^[0-9]{6}$/.test(code))reject('Enter your six-digit code.');
    const chall=await db.collection('otps').findOne({id,expires:{$gt:new Date()},attempts:{$lt:5}});
-   if(!chall||!secureEqual(otpDigest(id,code),chall.hash)){await db.collection('otps').updateOne({id,attempts:{$lt:5}},{$inc:{attempts:1}});return reply(res,401,{error:'Code invalid or expired. You can request a new code.'});}
-   const consumed=await db.collection('otps').findOneAndDelete({id,hash:chall.hash,expires:{$gt:new Date()},attempts:{$lt:5}});if(!consumed)return reply(res,401,{error:'Code already used or expired.'});
+   if(!chall||!secureEqual(otpDigest(id,code),chall.hash)){await db.collection('otps').updateOne({id,attempts:{$lt:5}},{$inc:{attempts:1}});await recordIncident(db,action,401);return reply(res,401,{error:'Code invalid or expired. You can request a new code.'});}
+   const consumed=await db.collection('otps').findOneAndDelete({id,hash:chall.hash,expires:{$gt:new Date()},attempts:{$lt:5}});if(!consumed){await recordIncident(db,action,401);return reply(res,401,{error:'Code already used or expired.'})}
    const token=hex();await db.collection('sessions').insertOne({hash:sha(token),userId:chall.userId,expires:new Date(Date.now()+SESSION_HOURS*3600000)});setSession(res,token);
    const u=await db.collection('users').findOne({_id:chall.userId});await audit(db,u,'login',{source:'otp'});
    return reply(res,200,{user:restrictedUser(u)});
   }
+
+  if(action==='auth.recovery_start'){
+   await rateLimit(db,'recovery-ip:'+ipOf(req),5,3600000);
+   const email=assertEmail(body.email);
+   await rateLimit(db,'recovery-email:'+email,4,3600000);
+   const owner=await db.collection('users').findOne({email,active:true,role:'owner'});
+   const challenge=hex(20);
+   if(owner){
+    const code=String(crypto.randomInt(0,1000000)).padStart(6,'0');
+    const entry={id:challenge,userId:owner._id,hash:otpDigest(challenge,code),expires:new Date(Date.now()+10*60000),attempts:0};
+    await db.collection('recovery_otps').deleteMany({userId:owner._id});
+    await db.collection('recovery_otps').insertOne(entry);
+    try{await sendOtp(email,code)}catch(err){
+      await db.collection('recovery_otps').deleteOne({id:challenge});
+      await recordIncident(db,'auth.recovery_start',503);
+      console.error('Account recovery delivery unavailable');
+      return reply(res,503,{error:'Secure recovery email could not be delivered. Ask the owner to check their verified email service or use the private Render recovery option.'});
+    }
+   }
+   return reply(res,200,{challenge,message:'If this is the registered owner email, a recovery code has been sent. Never share the code.'});
+  }
+  if(action==='auth.recovery_finish'){
+   await rateLimit(db,'recovery-verify-ip:'+ipOf(req),12,3600000);
+   const id=safeText(body.challenge,60),code=String(body.code||''),pass=String(body.newPassword||'');
+   if(!/^[a-f0-9]{40}$/.test(id)||!/^[0-9]{6}$/.test(code)||pass.length<12||pass.length>256)reject('Provide a valid code and a new password of at least 12 characters.');
+   const rec=await db.collection('recovery_otps').findOne({id,expires:{$gt:new Date()},attempts:{$lt:5}});
+   if(!rec||!secureEqual(otpDigest(id,code),rec.hash)){
+     await db.collection('recovery_otps').updateOne({id,attempts:{$lt:5}},{$inc:{attempts:1}});
+     await recordIncident(db,action,401);return reply(res,401,{error:'Recovery code is invalid or expired.'});
+   }
+   const owner=await db.collection('users').findOne({_id:rec.userId,role:'owner',active:true});
+   if(!owner)reject('Recovery is available only for an active owner account.',403);
+   const used=await db.collection('recovery_otps').findOneAndDelete({id,hash:rec.hash,attempts:{$lt:5},expires:{$gt:new Date()}});
+   if(!used)reject('Recovery code was already used.',409);
+   await db.collection('users').updateOne({_id:owner._id},{$set:{passwordHash:await passwordHash(pass),passwordChangedAt:new Date(),mustRotatePassword:false}});
+   await db.collection('sessions').deleteMany({userId:owner._id});
+   await db.collection('otps').deleteMany({userId:owner._id});
+   await audit(db,owner,'owner.recovery',{method:'email'});
+   clearSession(res);
+   return reply(res,200,{ok:true,message:'Owner password changed. Sign in again with the new password and a fresh OTP.'});
+  }
+  if(action==='auth.recovery_token'){
+   await rateLimit(db,'recovery-token-ip:'+ipOf(req),4,3600000);
+   const supplied=String(body.recoveryToken||'');
+   const configured=String(process.env.OWNER_RECOVERY_TOKEN||'');
+   if(supplied.length<32||supplied.length>256||configured.length<32||!secureEqual(sha(supplied),sha(configured))){
+     await recordIncident(db,action,403);return reply(res,403,{error:'Invalid or unavailable recovery token. Configure a new 32+ character OWNER_RECOVERY_TOKEN in Render.'});
+   }
+   const email=assertEmail(body.email),password=String(body.newPassword||'');
+   if(password.length<12||password.length>256)reject('Use a new owner password of at least 12 characters.');
+   const owner=await db.collection('users').findOne({email,role:'owner',active:true});
+   if(!owner)return reply(res,403,{error:'Recovery token or owner email was not accepted.'});
+   const digest=sha(configured);
+   const already=await db.collection('recovery_used_tokens').findOne({_id:digest});
+   if(already)reject('This recovery token was already consumed. Set a fresh token in Render.',409);
+   try{await db.collection('recovery_used_tokens').insertOne({_id:digest,usedAt:new Date()})}
+   catch(err){if(err.code===11000)reject('Recovery token already consumed.',409);throw err}
+   await db.collection('users').updateOne({_id:owner._id},{$set:{passwordHash:await passwordHash(password),passwordChangedAt:new Date(),mustRotatePassword:false}});
+   await db.collection('sessions').deleteMany({userId:owner._id});
+   await db.collection('otps').deleteMany({userId:owner._id});
+   await db.collection('recovery_otps').deleteMany({userId:owner._id});
+   await audit(db,owner,'owner.recovery',{method:'one_time_render_token'});
+   clearSession(res);
+   return reply(res,200,{ok:true,message:'Owner password securely reset. Remove OWNER_RECOVERY_TOKEN from Render, and sign in with the new password.'});
+  }
+
   if(action==='tables.request'){
    await rateLimit(db,'call-ip:'+ipOf(req),300,10*60000);
    const table=assertTable(body.table),key=safeText(body.key,90),type=safeText(body.type,24);
@@ -170,6 +237,7 @@ export default async function handler(req,res){
   const additional=await operationalAction(action,{db,user:u,body,audit,publish});
   if(additional)return reply(res,additional.status,additional.data);
 
+  if(action==='diagnostics.snapshot')return reply(res,200,{snapshot:await diagnosticsSnapshot(db)});
   if(action==='users.list'){
    const data=await C('users').find({},{projection:{name:1,email:1,role:1,active:1,mustRotatePassword:1,createdAt:1}}).sort({active:-1,role:1,name:1}).toArray();
    return reply(res,200,{users:data.map(x=>({...restrictedUser(x),active:x.active!==false,mustRotatePassword:x.mustRotatePassword===true}))});
@@ -181,7 +249,7 @@ export default async function handler(req,res){
   }
   if(action==='users.create'){
    const email=assertEmail(body.email),name=safeText(body.name,80),role=safeText(body.role,30);
-   if(name.length<2||!['manager','chef','waiter','reception'].includes(role))reject('Enter a valid staff name and role.');
+   if(name.length<2||!['manager','chef','waiter','reception','developer'].includes(role))reject('Enter a valid staff name and role.');
    const temporary=crypto.randomBytes(18).toString('base64url');
    const passwordHashValue=await passwordHash(temporary);
    try {
@@ -198,7 +266,7 @@ export default async function handler(req,res){
    let changes={};
    if(mode==='role'){
      const newRole=safeText(body.role,30);
-     if(!['manager','chef','waiter','reception'].includes(newRole))reject('Choose an allowed staff role.');
+     if(!['manager','chef','waiter','reception','developer'].includes(newRole))reject('Choose an allowed staff role.');
      changes={role:newRole};
    }else if(mode==='activate')changes={active:true};
    else if(mode==='deactivate')changes={active:false};
@@ -469,5 +537,5 @@ export default async function handler(req,res){
   }
   if(action==='audit.list'){const rows=await C('audit').find({}).sort({createdAt:-1}).limit(100).toArray();return reply(res,200,{items:rows.map(x=>({...x,id:String(x._id),_id:undefined}))})}
   reject('Unknown action',404)
- } catch(error){const status=error.status|| (error.code===11000?409:500);if(status===500)console.error('Cassia API:',error.message);return reply(res,status,{error:status===500?'Service unavailable. Contact administrator.':error.message})}
+ } catch(error){const status=error.status|| (error.code===11000?409:500);if(status===500)console.error('Cassia API:',error.message);try{const db=await database();await recordIncident(db,action,status)}catch{}return reply(res,status,{error:status===500?'Service unavailable. Contact administrator.':error.message})}
 }
