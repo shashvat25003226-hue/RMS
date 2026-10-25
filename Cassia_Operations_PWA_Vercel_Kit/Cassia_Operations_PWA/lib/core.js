@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 export const roles=['owner','manager','chef','waiter','reception'];
 export const orderStatuses=['sent','received','preparing','ready','served','cancelled'];
+export function validShiftDate(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const date=new Date(value+'T12:00:00.000Z');return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;}
+export const indiaDay=()=>new Date(Date.now()+19800000).toISOString().slice(0,10);
 export const allowedActions={
   'users.create':['owner'],'users.list':['owner','manager'],'users.assignable':['owner','manager','chef'],'users.update':['owner'],'users.reset_password':['owner'],'users.set_password':['owner'],
   'tables.list':['owner','manager','chef','waiter','reception'],'tables.provision':['owner','manager'],
@@ -21,7 +23,7 @@ export const allowedActions={
   'audit.list':['owner'],
   'banquet.slots':['owner','manager','reception'],'banquet.list':['owner','manager','reception'],'banquet.create':['owner','manager','reception'],'banquet.update':['owner','manager','reception'],
   'customers.insights':['owner','manager','waiter','reception'],'customers.lookup':['owner','manager','waiter','reception'],'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
-  'coupons.issue':['owner','manager'],'coupons.redeem':['owner','manager','reception'],'notifications.list':['owner','manager','chef','waiter','reception'],'notifications.read':['owner','manager','chef','waiter','reception']
+  'coupons.issue':['owner','manager'],'coupons.redeem':['owner','manager','reception'],'notifications.list':['owner','manager','chef','waiter','reception'],'notifications.read':['owner','manager','chef','waiter','reception'],'notifications.read_all':['owner','manager','chef','waiter','reception'],'notifications.read_many':['owner','manager','chef','waiter','reception']
 };
 export const can=(role,action)=>(allowedActions[action]||[]).includes(role);
 export const hex=(n=32)=>crypto.randomBytes(n).toString('hex');
