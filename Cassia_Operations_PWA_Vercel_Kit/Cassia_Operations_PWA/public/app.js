@@ -350,7 +350,7 @@ async function initGuest(){
  let timer=null;
  async function status(silent=false){
   try{const result=await request('tables.status',{table:Number(table),key:secret});
-   const labels={idle:'Your table is ready. Tap an option below whenever you need us.',open:'Your request is in the queue. A waiter will come to your table.',claimed:'A waiter has accepted the request and is on the way.'};
+   const labels={idle:'Your table is ready. Tap an option below whenever you need us.',done:'Your request was completed. Thank you for your patience.',open:'Your request is in the queue. A waiter will come to your table.',claimed:'A waiter has accepted the request and is on the way.'};
    if(!silent||result.status!=='idle')notice.textContent=labels[result.status]||'A team member can help you.';
    notice.dataset.status=result.status;
   }catch(error){if(!silent)notice.textContent=error.message}
