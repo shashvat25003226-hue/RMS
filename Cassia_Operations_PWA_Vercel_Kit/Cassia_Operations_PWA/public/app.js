@@ -159,7 +159,7 @@ function startLive(){
  }
  pollLive();
 }
-function enterShell(){show('shell');$('#userBadge').innerHTML=`<span>${escapeHTML(user.name)}</span><div class="avatar">${escapeHTML(user.name[0].toUpperCase())}</div>`;
+function enterShell(){show('shell');const roleLabel={owner:'Owner',manager:'Manager',chef:'Head chef',waiter:'Waiter',reception:'Reception'}[user.role]||'Team';$('#userBadge').innerHTML=`<span>${escapeHTML(roleLabel)}</span><div class="avatar" aria-hidden="true">${escapeHTML(roleLabel[0].toUpperCase())}</div>`;$('#userBadge').title=roleLabel+' · '+user.name;
  const badge=$('#userBadge');badge.setAttribute('role','button');badge.setAttribute('tabindex','0');badge.setAttribute('aria-label','Open my profile');badge.setAttribute('aria-haspopup','dialog');
  if(!$('#profileMenu')){const card=document.createElement('section');card.id='profileMenu';card.className='profile-menu hidden';document.body.append(card)}
  const toggleProfile=()=>{
