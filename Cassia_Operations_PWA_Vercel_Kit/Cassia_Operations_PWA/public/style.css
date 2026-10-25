@@ -187,3 +187,100 @@ select,input,textarea{max-width:100%}
 
 .food-artwork{overflow:hidden;background:#e9ddc6}.food-artwork img{width:100%;height:100%;object-fit:cover;display:block;image-rendering:auto}.attendance-brief{margin-top:16px;margin-bottom:21px}.attendance-brief .btn-row{display:flex;gap:13px;align-items:center;flex-wrap:wrap}.readiness-panel{margin:0 0 17px}.readiness-stats{display:flex;gap:15px;font-size:13px;margin:0 0 10px}.readiness-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:4px 12px;max-height:224px;overflow-y:auto;overscroll-behavior:contain}.readiness-item{display:flex;align-items:center;justify-content:space-between;min-width:0;gap:8px;border-bottom:1px solid var(--line);padding:8px 0;font-size:12px}.readiness-item span:first-child{min-width:0;overflow-wrap:anywhere}.readiness-item .pill{font-size:9px;white-space:nowrap}
 @media(max-width:600px){.readiness-list{grid-template-columns:1fr;max-height:190px}.readiness-stats{flex-wrap:wrap}.attendance-brief{padding:13px}.menu-book .food-artwork img{object-position:center}}
+
+/* Cassia 2026 · purposeful service-first navigation */
+.sidebar{scrollbar-width:thin;scrollbar-color:#ffffff38 transparent}
+.sidebar nav{display:block}
+.nav-primary,.nav-extra{display:grid;gap:4px}
+.nav-extra[hidden]{display:none!important}
+.nav-more{width:100%;margin:10px 0 12px;display:flex;align-items:center;gap:11px;cursor:pointer;background:#ffffff0b;border:1px solid #ffffff1c;border-radius:13px;color:#e6decf;padding:13px 15px;font:700 12px var(--sans);transition:background .22s ease,transform .22s ease}
+.nav-more:hover,.nav-more:focus-visible{background:#ffffff1b;transform:translateY(-1px)}
+.nav-more span:first-child{font-size:17px;color:#dfc69c}
+.nav-more-chevron{margin-left:auto;font-size:16px}
+.nav-primary .nav-item{min-height:49px;font-weight:700;font-size:13px}
+.nav-extra{animation:reveal-nav .25s cubic-bezier(.2,.7,.2,1) both}
+@keyframes reveal-nav{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:translateY(0)}}
+.page-head h1{font-weight:400}
+.panel,.order-card,.stat-card{transition:box-shadow .28s ease,transform .28s ease,border-color .28s ease}
+.order-card:hover,.stat-card:hover{box-shadow:0 15px 35px #09180c13;transform:translateY(-2px)}
+button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button:disabled{cursor:not-allowed;opacity:.62;transform:none!important}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #c6a36d88;outline-offset:2px}
+.banquet-bookings{display:grid;gap:0}
+.banquet-event{display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--line);padding:17px 0;min-width:0}
+.banquet-event:last-child{border:0}
+.banquet-date{width:62px;min-width:62px;min-height:62px;display:grid;place-content:center;text-align:center;background:var(--forest);color:#f4e3c5;border-radius:15px;gap:2px}
+.banquet-date strong{font:400 31px var(--serif);line-height:1}
+.banquet-date small{font-size:9px;letter-spacing:.1em}
+.banquet-event-copy{display:grid;gap:5px;flex:1;min-width:0}
+.banquet-event-copy strong{font-size:16px}
+.banquet-event-copy span{font-size:13px;text-transform:capitalize;color:var(--ink)}
+.banquet-event-copy small{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.banquet-event-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;max-width:165px}
+.banquet-slot-field{padding:0;margin:0;border:0;min-width:0}
+.banquet-slot-field legend{font-size:12px;font-weight:800;margin-bottom:10px}
+.banquet-slot-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.slot-chip{position:relative;min-width:0;display:grid;gap:5px;padding:14px 9px;border:1px solid var(--line);background:var(--card);border-radius:12px;cursor:pointer;transition:border-color .2s ease,background .2s ease}
+.slot-chip:has(input:checked){border-color:var(--gold);background:#dfc59e22;box-shadow:inset 0 0 0 1px var(--gold)}
+.slot-chip.disabled{opacity:.48;cursor:not-allowed;background:var(--soft)}
+.slot-chip input{position:absolute;right:8px;top:8px;width:14px;height:14px;min-height:0}
+.slot-chip span{font-size:13px;font-weight:800;margin-top:8px}
+.slot-chip small{font-size:11px;color:var(--muted)}
+.decoration-choice,.consent-line{display:flex!important;align-items:center;gap:12px;border:1px solid var(--line);border-radius:13px;padding:13px 15px;cursor:pointer}
+.decoration-choice input,.consent-line input{width:18px;height:18px;min-height:18px;flex:none}
+.decoration-choice span{display:grid;gap:2px}
+.decoration-choice small{color:var(--muted)}
+.consent-line span{font-size:12px;line-height:1.45}
+.booking-total{display:flex;align-items:center;justify-content:space-between;background:var(--soft);border-radius:12px;padding:17px;font-size:13px}
+.booking-total strong{font-size:20px;color:var(--ink)}
+.call-urgent{border-color:#ca7454!important;background:linear-gradient(140deg,#f1d7ce27,var(--card))}
+.call-card .btn-row{margin-top:13px}
+.guest-check{display:block;width:100%;border:1px solid #c1a477;background:transparent;border-radius:15px;padding:15px;margin-top:12px;font-size:13px;font-weight:800;color:#314b3a;cursor:pointer}
+.guest-notice{border-radius:14px;margin-top:20px;padding:15px 18px;min-height:53px;background:#f1e9d9;color:#395043;font-size:14px;line-height:1.5}
+.guest-notice[data-status=claimed]{background:#e2f0e2}
+.guest-notice[data-status=open]{background:#f7edcf}
+.guest-actions button{transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s}
+.guest-actions button:active{transform:scale(.975)}
+.guest-recognition{border:1px solid var(--line);border-radius:15px;padding:16px;background:var(--soft);display:grid;gap:10px;animation:reveal-nav .25s ease}
+.guest-recognition-title{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.guest-recognition-title strong{font-size:16px}
+.guest-recognition-title span{color:#95743e;font-weight:800;font-size:11px}
+.guest-coupon-list{display:grid;gap:8px;font-size:12px}
+.guest-coupon-list>div{padding:10px;border:1px solid var(--line);border-radius:10px}
+.guest-coupon-list small{display:block;color:var(--muted);margin-top:3px}
+.guest-favourites{display:flex;flex-wrap:wrap;gap:8px}
+@media(max-width:880px){
+ .sidebar{transform:translateX(-104%);width:min(295px,83vw);will-change:transform;z-index:46}
+ .sidebar.open{transform:translateX(0)}
+ .sidebar nav{max-width:100%;overflow:visible}
+ .side-label{margin-top:18px}
+ .side-brand{padding-bottom:17px}
+ .nav-primary .nav-item{min-height:48px}
+ .side-bottom{padding-top:12px;margin-top:12px}
+ .mobile-tabs{display:flex;justify-content:space-around;overflow:visible}
+ .mobile-tabs button{font-size:11px;min-height:46px;border-radius:10px}
+ .mobile-tabs button.active{background:#c9a96e18}
+ .topbar{padding:9px 13px}
+ .page-head{margin-bottom:19px}
+}
+@media(max-width:560px){
+ .banquet-slot-grid{grid-template-columns:1fr}
+ .slot-chip{grid-template-columns:1fr auto;align-items:center;gap:4px;padding:12px}
+ .slot-chip span{margin:0}
+ .slot-chip input{position:static;grid-row:1;grid-column:2}
+ .slot-chip small{grid-row:2;grid-column:1}
+ .banquet-event{align-items:flex-start;flex-wrap:wrap;gap:10px}
+ .banquet-date{width:54px;min-width:54px}
+ .banquet-event-actions{max-width:none;flex:1 1 100%;justify-content:flex-start;margin-left:64px}
+ .guest-body{padding:34px 17px 78px}
+ .guest-body h1{font-size:clamp(44px,13vw,67px);line-height:1.04}
+ .guest-top{height:65px;padding:10px 18px}
+ .guest-top img{width:46px;height:46px}
+ .guest-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .guest-actions button{min-width:0;min-height:150px;padding:15px 12px;box-shadow:0 7px 23px #1430210a}
+ .guest-actions button span{font-size:13px;line-height:1.35}
+ .guest-actions button small{font-size:10px;line-height:1.4}
+ .guest-number{margin-bottom:17px}
+ .page-head .head-actions button{min-height:43px}
+}
+@media(prefers-reduced-motion:reduce){.nav-extra,.guest-recognition{animation:none!important}.order-card,.stat-card,.guest-actions button{transition:none!important}}
