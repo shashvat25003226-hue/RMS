@@ -53,8 +53,8 @@ function renderPerformance(ctx){
  '<section class="panel"><div class="calendar-toolbar"><label class="month-filter">Month<input id="opsPerformanceMonth" type="month" value="'+h(performanceMonth)+'"></label><span class="pill gold">Owner-managed rewards</span></div><div class="leaderboard">'+(list.length?list.map(x=>'<div class="leader-row"><span class="leader-rank">'+x.rank+'</span><div class="leader-person"><strong>'+h(x.name)+'</strong><div class="muted small">'+h(x.role)+(x.highPerformer?' · Special approval flag':'')+'</div></div><div class="leader-score"><strong>'+Number(x.score||0)+'</strong><small>points</small></div>'+ (admin?'<button class="mini-btn" type="button" data-ops-flag="'+h(x.email)+'" data-is-flagged="'+(x.highPerformer?'1':'0')+'">'+(x.highPerformer?'Remove protected flag':'Protect leave approval')+'</button>':'')+'</div>').join(''):'<div class="empty">There are no recognition entries yet.</div>')+'</div><p class="muted small">Each verified completed task gives one indicative point. Additional recognition points are granted by the owner. Ranking disputes should be reviewed by a human.</p></section>';
 }
 function foodArtwork(category){
- const food=category==='Indian Breads'?'🥘':category==='Beverages'?'🥤':category==='Desserts'?'🍰':category==='South Indian'?'🥞':category==='Chinese'?'🥡':category==='Cafe'?'🍕':'🍛';
- return '<div class="food-artwork" role="img" aria-label="Illustrative illustration of '+h(category)+'"><span aria-hidden="true">'+food+'</span></div>';
+ const asset=category==='Indian Breads'?'bread':category==='Beverages'?'drink':category==='Desserts'?'sweet':category==='South Indian'?'south':category==='Chinese'?'chinese':'curry';
+ return '<div class="food-artwork"><img loading="lazy" decoding="async" src="/assets/menu-'+asset+'.svg" alt="Illustrative '+h(category)+' food artwork"></div>';
 }
 function renderMenu(ctx){
  const owner=ctx.user.role==='owner',isStaff=rolesFull.includes(ctx.user.role)||ctx.user.role==='chef',recipes=new Map((ctx.readiness?.items||[]).map(x=>[x.name,x]));
@@ -67,8 +67,9 @@ function renderMenu(ctx){
  '<div class="menu-toolbar"><button class="secondary '+(menuView==='book'?'selected':'')+'" data-ops-menu-mode="book">Book view</button><button class="secondary '+(menuView==='grid'?'selected':'')+'" data-ops-menu-mode="grid">Operations view</button><span class="muted small">'+ctx.menu.length+' dishes</span></div>'+demoMessage+
  '<div class="menu-book '+(menuView==='grid'?'operations':'')+'"><div class="book-cover"><img src="/assets/dining.webp" loading="lazy" alt="Cassia restaurant interior"><div class="book-cover-copy"><small>RESTAURANT · CAFÉ · CELEBRATIONS</small><h2>CASSIA</h2><p>The menu</p><small>Gorakhpur · An invitation to savour</small></div></div>'+sections+'</div>';
 }
-async function bind(ctx){
+function bind(ctx){
  const request=ctx.request,load=ctx.load,toast=ctx.toast,openDialog=ctx.openDialog,closeDialog=ctx.closeDialog,user=ctx.user;
+ document.querySelector('#opsImportFile')?.addEventListener('change',()=>{importRows=[];const b=document.querySelector('#opsCommitCsv');if(b)b.disabled=true;const out=document.querySelector('#opsImportPreview');if(out)out.textContent='New file selected. Click Preview file.';});
  document.querySelector('#opsImportSource')?.addEventListener('change',e=>{
   source=e.target.value;importRows=[];document.querySelector('#opsCommitCsv').disabled=true;
   document.querySelector('#opsImportColumns').textContent=source==='petpooja'?'Petpooja columns: bill_number, date (YYYY-MM-DD), amount. Max 40 rows.':'Attendo columns: email, date (YYYY-MM-DD), status (present, absent, leave, half_day, late).';
