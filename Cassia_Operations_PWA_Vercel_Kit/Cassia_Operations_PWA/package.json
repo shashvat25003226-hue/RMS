@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/local-server.mjs",
     "seed:owner": "node scripts/seed-owner.mjs",
-    "check": "node --check api/index.js && node --check lib/db.js && node --check lib/mail.js && node --check lib/core.js && node --check scripts/local-server.mjs && node --check public/app.js && node --test tests/*.test.mjs",
+    "check": "node --check api/index.js && node --check lib/db.js && node --check lib/ops.js && node --check public/ops-ui.js && node --check lib/mail.js && node --check lib/core.js && node --check scripts/local-server.mjs && node --check public/app.js && node --test tests/*.test.mjs",
     "start": "node scripts/local-server.mjs"
   },
   "engines": {
