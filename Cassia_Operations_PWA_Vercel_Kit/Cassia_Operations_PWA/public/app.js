@@ -125,7 +125,17 @@ function startLive(){
  }
  pollLive();
 }
-function enterShell(){show('shell');$('#userBadge').innerHTML=`<span>${escapeHTML(user.name)}</span><div class="avatar">${escapeHTML(user.name[0].toUpperCase())}</div>`;$('#connectionStatus').textContent=preview?'● PREVIEW ONLY':'● SECURE WORKSPACE';$('#logout').textContent=preview?'↩ Exit preview':'↩ Sign out';
+function enterShell(){show('shell');$('#userBadge').innerHTML=`<span>${escapeHTML(user.name)}</span><div class="avatar">${escapeHTML(user.name[0].toUpperCase())}</div>`;
+ const badge=$('#userBadge');badge.setAttribute('role','button');badge.setAttribute('tabindex','0');badge.setAttribute('aria-label','Open my profile');badge.setAttribute('aria-haspopup','dialog');
+ if(!$('#profileMenu')){const card=document.createElement('section');card.id='profileMenu';card.className='profile-menu hidden';document.body.append(card)}
+ const toggleProfile=()=>{
+   const card=$('#profileMenu');const opening=card.classList.contains('hidden');
+   card.classList.toggle('hidden',!opening);
+   badge.setAttribute('aria-expanded',String(opening));
+   if(opening){card.innerHTML='<strong>'+escapeHTML(user.name)+'</strong><small>'+escapeHTML(user.email||'')+'</small><small>Access: '+escapeHTML(user.role)+'</small>'+(!preview?'<button id="profileChangePassword" type="button">Change my password</button>':'')+'<button id="profileSignOut" type="button">'+(preview?'Exit preview':'Sign out')+'</button>';if($('#profileChangePassword'))$('#profileChangePassword').onclick=()=>{card.classList.add('hidden');openPasswordChange()};$('#profileSignOut').onclick=()=>{$('#logout').click()}}
+ };
+ badge.onclick=toggleProfile;badge.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleProfile()}};
+$('#connectionStatus').textContent=preview?'● PREVIEW ONLY':'● SECURE WORKSPACE';$('#logout').textContent=preview?'↩ Exit preview':'↩ Sign out';
  if(preview&&!$('#previewRibbon')){const r=document.createElement('div');r.id='previewRibbon';r.className='preview-ribbon';r.innerHTML='INTERACTIVE SANDBOX · NOT CONNECTED TO LIVE DATA · <label>VIEW AS <select id="previewRole" class="preview-switch">'+['owner','manager','chef','waiter','reception'].map(r=>`<option value="${r}">${r.toUpperCase()}</option>`).join('')+'</select></label>';$('.main-wrap').prepend(r);$('#previewRole').value=demoRole;$('#previewRole').addEventListener('change',async e=>{demoRole=e.target.value;user={id:'preview',name:demoRole[0].toUpperCase()+demoRole.slice(1)+' preview',email:demoRole+'@cassia.example',role:demoRole};enterShell()})}
  if(!$('#changePassword')){const b=document.createElement('button');b.id='changePassword';b.textContent='Change password';b.type='button';b.onclick=openPasswordChange;$('.side-bottom').insertBefore(b,$('#logout'))}$('#changePassword').classList.toggle('hidden',preview);paintNav();if(!isAllowed(page))page='overview';lastPageSignature='';load();startLive();}
 function paintNav(){const parts=navItems.filter(n=>isAllowed(n[0]));$('#nav').innerHTML=parts.map(([id,name])=>`<button class="nav-item ${page===id?'active':''}" data-page="${id}"><span class="nav-icon">${icons[id]}</span>${name}</button>`).join('');const quick=['overview','orders','kitchen','calls','tasks'].filter(isAllowed).slice(0,4);$('#mobileTabs').innerHTML=quick.map(k=>`<button class="${page===k?'active':''}" data-page="${k}"><b>${icons[k]}</b>${navItems.find(a=>a[0]===k)[1].split(' ')[0]}</button>`).join('');$$('[data-page]').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)))}
@@ -286,7 +296,7 @@ $('#ownerSetupForm').addEventListener('submit',async e=>{
 $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;$('#authError').textContent='';try{const d=formData(e.target);const r=await request('auth.start',d);challenge=r.challenge;const notice=$('#clientDemoOtp');if(notice){notice.classList.toggle('hidden',!(r.demoOnly&&r.demoCode));notice.textContent=r.demoOnly&&r.demoCode?'CLIENT DEMO ONLY — OTP: '+r.demoCode+' — Not real email verification.':''}$('#loginForm').classList.add('hidden');$('#otpForm').classList.remove('hidden');$('#otpForm [name=code]').focus()}catch(err){$('#authError').textContent=err.message}finally{btn.disabled=false}});
 $('#otpForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;$('#authError').textContent='';try{const r=await request('auth.verify',{challenge,code:e.target.elements.code.value});user=r.user;enterShell()}catch(err){$('#authError').textContent=err.message}finally{btn.disabled=false}});
 $('#backLogin').onclick=()=>{$('#otpForm').classList.add('hidden');$('#loginForm').classList.remove('hidden');challenge=''};
-$('#logout').onclick=async()=>{if(preview){location.href='/';return}try{await request('auth.logout')}catch(_){}user=null;show('auth')};
+$('#logout').onclick=async()=>{if(preview){location.href='/';return}try{await request('auth.logout')}catch(_){}user=null;notifications=[];notificationInitialized=false;if($('#profileMenu'))$('#profileMenu').classList.add('hidden');if(liveTimer){clearInterval(liveTimer);liveTimer=null}show('auth')};
 $('#menuToggle').onclick=()=>$('#sidebar').classList.toggle('open');
 if('serviceWorker'in navigator)window.addEventListener('load',()=>{navigator.serviceWorker.register('/service-worker.js').catch(()=>{})});
 window.addEventListener('offline',()=>toast('You are offline. New orders cannot be sent until connection returns.'));
