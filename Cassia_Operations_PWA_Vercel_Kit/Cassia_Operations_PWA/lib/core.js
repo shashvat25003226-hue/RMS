@@ -19,7 +19,7 @@ export const allowedActions={
   'inventory.readiness':['owner','manager','chef','waiter','reception'],
   'menu.price':['owner'],
   'audit.list':['owner'],
-  'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
+  'customers.lookup':['owner','manager','waiter','reception'],'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
   'coupons.issue':['owner','manager'],'coupons.redeem':['owner','manager','reception'],'notifications.list':['owner','manager','chef','waiter','reception'],'notifications.read':['owner','manager','chef','waiter','reception']
 };
 export const can=(role,action)=>(allowedActions[action]||[]).includes(role);
