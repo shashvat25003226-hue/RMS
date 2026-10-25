@@ -191,21 +191,21 @@ function attachActions(){
  $$('[data-task]').forEach(b=>b.onclick=async()=>{try{await request('tasks.update',{id:b.dataset.task,status:b.dataset.state});load()}catch(e){toast(e.message)}});
  $$('[data-leave]').forEach(b=>b.onclick=async()=>{try{await request('leave.review',{id:b.dataset.leave,status:b.dataset.state});load()}catch(e){toast(e.message)}});
  if($('#closingForm')){$('#closingForm [name=shift]').value=new Date().toISOString().slice(0,10);$('#closingForm').onsubmit=async e=>{e.preventDefault();try{const d=formData(e.target);await request('closing.confirm',{...d,tabletCharging:e.target.elements.tabletCharging.checked});toast('Handover saved.')}catch(e){toast(e.message)}}}
- if($('#teamSearch'))$('#teamSearch').oninput=e=>{const q=e.target.value.trim().toLowerCase();$('[data-member-row]').forEach(row=>row.hidden=!row.dataset.search.includes(q))};
+ if($('#teamSearch'))$('#teamSearch').oninput=e=>{const q=e.target.value.trim().toLowerCase();$$('[data-member-row]').forEach(row=>row.hidden=!row.dataset.search.includes(q))};
  if(user.role==='owner'){
-   $('[data-user-role]').forEach(b=>b.onclick=()=>{
+   $$('[data-user-role]').forEach(b=>b.onclick=()=>{
      const member=staff.find(x=>x.id===b.dataset.userRole);if(!member||member.role==='owner')return;
      openDialog('Change employee role','<form id="roleUpdateForm" class="form-stack"><p>Employee: <strong>'+escapeHTML(member.name)+'</strong><br><span class="muted">'+escapeHTML(member.email)+'</span></p><label>New role<select name="role"><option value="waiter">Waiter / Floor staff</option><option value="manager">Manager</option><option value="chef">Head Chef</option><option value="reception">Reception</option></select></label><div class="warning">Changing the role ends the employee&#39;s current sessions. They must sign in again.</div><button class="primary" type="submit">Save role</button></form>');
      $('#roleUpdateForm').elements.role.value=member.role;
      $('#roleUpdateForm').onsubmit=async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;try{await request('users.update',{id:member.id,mode:'role',role:e.target.elements.role.value});closeDialog();toast('Role updated.');await load()}catch(err){toast(err.message);btn.disabled=false}};
    });
-   $('[data-user-state]').forEach(b=>b.onclick=async()=>{
+   $$('[data-user-state]').forEach(b=>b.onclick=async()=>{
      const member=staff.find(x=>x.id===b.dataset.userState);if(!member||member.role==='owner')return;
      const mode=b.dataset.mode,verb=mode==='deactivate'?'disable':'activate';
      if(!confirm('Do you want to '+verb+' '+member.name+'?'+(mode==='deactivate'?' Their sessions will be revoked.':'')))return;
      b.disabled=true;try{await request('users.update',{id:member.id,mode});toast('Account updated.');await load()}catch(err){toast(err.message);b.disabled=false}
    });
-   $('[data-user-reset]').forEach(b=>b.onclick=async()=>{
+   $$('[data-user-reset]').forEach(b=>b.onclick=async()=>{
      const member=staff.find(x=>x.id===b.dataset.userReset);if(!member||member.role==='owner')return;
      if(!confirm('Reset the password for '+member.name+'? This immediately invalidates their old password and sessions.'))return;
      b.disabled=true;try{
@@ -225,7 +225,7 @@ function attachActions(){
    try{await request('customers.vip',{phone:b.dataset.vipPhone,tier});toast('Guest tier updated.');await load()}catch(err){toast(err.message);b.disabled=false}
  });
  $('[data-offer-phone]').forEach(b=>b.onclick=()=>{dialogFor('coupon');if($('#couponForm'))$('#couponForm').elements.phone.value=b.dataset.offerPhone});
- $('[data-user-password]').forEach(b=>b.onclick=()=>{
+ $$('[data-user-password]').forEach(b=>b.onclick=()=>{
    if(user.role!=='owner')return;
    const member=staff.find(x=>x.id===b.dataset.userPassword);if(!member||member.role==='owner')return;
    openDialog('Set staff password',`<form id="staffSetPassword" class="form-stack"><p>Staff: <strong>${escapeHTML(member.name)}</strong> · ${escapeHTML(member.email)}</p><label>New strong password<input name="password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required></label><div class="warning">The password will not be displayed again. The employee's other sessions and one-time codes will be revoked immediately. They must change it after signing in.</div><button class="primary" type="submit">Set password securely</button></form>`);
