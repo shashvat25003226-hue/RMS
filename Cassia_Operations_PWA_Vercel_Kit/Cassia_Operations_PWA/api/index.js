@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import {ObjectId} from 'mongodb';
 import {database,ensureIndexes} from '../lib/db.js';
 import {operationalAction} from '../lib/ops.js';
+import {hospitalityAction} from '../lib/hospitality.js';
 import {sendOtp} from '../lib/mail.js';
 import {roles,can,orderStatuses,sha,hex,safeText,validEmail,passwordHash,passwordVerify,otpDigest,secureEqual,advance,restrictedUser,publicOrder} from '../lib/core.js';
 const DAY=86400000, SESSION_HOURS=12;
@@ -115,8 +116,25 @@ export default async function handler(req,res){
    if(!['order','help','bill','urgent'].includes(type)||!/^[a-f0-9]{64}$/.test(key))reject('Invalid table request.');
    const tableRec=await db.collection('tables').findOne({number:table,keyHash:sha(key),active:true});if(!tableRec)reject('This table QR link is invalid. Ask staff for help.',403);
    const existing=await db.collection('calls').findOne({table,status:{$in:['open','claimed']}});
-   if(existing)return reply(res,200,{ok:true,message:'A team member has already been notified.',callId:String(existing._id)});
-   const row={table,type,status:'open',createdAt:new Date(),updatedAt:new Date(),claimedBy:null};const add=await db.collection('calls').insertOne(row);await publish(db,['owner','manager','waiter','reception'],'table-call','Guest needs help','Table '+table+' • '+type+' request.');return reply(res,200,{ok:true,message:'Your request has been sent to the service team.',callId:String(add.insertedId)});
+   if(existing){
+     if(type==='urgent'&&existing.type!=='urgent'){
+       await db.collection('calls').updateOne({_id:existing._id,status:{$in:['open','claimed']}},{$set:{type:'urgent',escalatedAt:new Date(),updatedAt:new Date()}});
+       await publish(db,['owner','manager','waiter'],'urgent','Urgent table assistance','Table '+table+' needs immediate support.');
+     }
+     return reply(res,200,{ok:true,status:existing.status,message:existing.status==='claimed'?'A waiter is attending your request.':'Your request is already in the queue. The team has been notified.'});
+   }
+   const row={table,type,status:'open',createdAt:new Date(),updatedAt:new Date(),claimedBy:null};const add=await db.collection('calls').insertOne(row);
+   await publish(db,['owner','manager','waiter'],type==='urgent'?'urgent':'table-call',type==='urgent'?'Urgent guest assistance':'Guest needs help','Table '+table+' • '+type+' request.');
+   return reply(res,200,{ok:true,status:'open',message:'Your request has reached the restaurant. A waiter will respond.'});
+  }
+  if(action==='tables.status'){
+   await rateLimit(db,'table-status:'+ipOf(req),50,10*60000);
+   const table=assertTable(body.table),key=safeText(body.key,90);
+   if(!/^[a-f0-9]{64}$/.test(key))reject('Invalid table link.',403);
+   const active=await db.collection('tables').findOne({number:table,keyHash:sha(key),active:true},{projection:{number:1}});
+   if(!active)reject('This table QR link is no longer active. Ask staff to renew it.',403);
+   const current=await db.collection('calls').findOne({table,status:{$in:['open','claimed']}},{projection:{status:1,type:1,updatedAt:1}});
+   return reply(res,200,{status:current?.status||'idle',type:current?.type||null,updatedAt:current?.updatedAt||null});
   }
   if(action==='orders.track'){
    await rateLimit(db,'track:'+ipOf(req),70,10*60000);
@@ -141,6 +159,8 @@ export default async function handler(req,res){
   if(action==='users.create'&&u.role!=='owner')reject('Only owner can create staff accounts.',403);
   if(!can(u.role,action))reject('Your role does not have permission for this action.',403);
   const C=name=>db.collection(name);
+  const hotel=await hospitalityAction(action,{db,user:u,body,audit,publish});
+  if(hotel)return reply(res,hotel.status,hotel.data);
   const additional=await operationalAction(action,{db,user:u,body,audit,publish});
   if(additional)return reply(res,additional.status,additional.data);
 
@@ -316,10 +336,19 @@ export default async function handler(req,res){
    await audit(db,u,action,{orderId,billingStatus,petpoojaRef});await publish(db,['owner','manager','reception'],'billing','Petpooja reconciliation updated','Order '+orderId+' • '+billingStatus+'.');return reply(res,200,{ok:true});
   }
   if(action==='calls.list'){const calls=await C('calls').find({status:{$ne:'done'}}).sort({createdAt:-1}).limit(150).toArray();return reply(res,200,{calls:calls.map(c=>({...c,id:String(c._id),_id:undefined}))})}
+  if(action==='calls.assign'){
+   let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid service request.',400)}
+   const email=assertEmail(body.email);
+   const employee=await C('users').findOne({email,role:'waiter',active:true});
+   if(!employee)reject('Assign a currently active waiter, not reception or kitchen.',409);
+   const changed=await C('calls').updateOne({_id:id,status:'open'},{$set:{status:'claimed',claimedBy:String(employee._id),assignedBy:u.email,updatedAt:new Date()}});
+   if(!changed.modifiedCount)reject('A waiter already owns this request or it was completed.',409);
+   await audit(db,u,action,{id:String(id),assignedTo:email});await publish(db,['waiter'],'table-call','Assigned guest request','A manager assigned a guest call.',email);
+   return reply(res,200,{ok:true});
+  }
   if(action==='calls.claim'||action==='calls.done'){
    let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid call ID')}
    const match=action==='calls.claim'?{_id:id,status:'open'}:{_id:id,status:'claimed',claimedBy:String(u._id)};
-   if(action==='calls.done'&&['owner','manager'].includes(u.role))delete match.claimedBy;
    const update=action==='calls.claim'?{$set:{status:'claimed',claimedBy:String(u._id),updatedAt:new Date()}}:{$set:{status:'done',updatedAt:new Date(),completedBy:String(u._id)}};
    const result=await C('calls').updateOne(match,update);if(!result.modifiedCount)reject('Call already taken or cannot be updated.',409);
    await audit(db,u,action,{id:String(id)});return reply(res,200,{ok:true});
