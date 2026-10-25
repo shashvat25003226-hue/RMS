@@ -65,8 +65,16 @@ export async function operationalAction(action,{db,user,body,audit,publish}){
    const updated=await C('import_records').updateOne({_id:id,status:'pending_review'},{$set:{status:decision,reviewedBy:user.email,reviewedAt:now()}});
    if(!updated.modifiedCount)fail('Already reviewed by another manager.',409);
    if(decision==='approved'){
-     const collection=rec.source==='attendo'?'attendance_imported':'petpooja_imported';
-     await C(collection).updateOne({_id:id},{$setOnInsert:{...rec.record,source:'verified_'+rec.source,sourceRef:id,verifiedBy:user.email,verifiedAt:now()}},{upsert:true});
+     try{
+       const collection=rec.source==='attendo'?'attendance_imported':'petpooja_imported';
+       const uniqueness=rec.source==='attendo'?{email:rec.record.email,date:rec.record.date}:{billNumber:rec.record.billNumber,date:rec.record.date};
+       const existing=await C(collection).findOne(uniqueness);
+       if(existing&&JSON.stringify(rec.record)!==JSON.stringify(rec.source==='attendo'?{email:existing.email,date:existing.date,status:existing.status}:{billNumber:existing.billNumber,date:existing.date,amount:existing.amount}))fail('Conflicting verified record exists for this date. Ask owner to reconcile before approving.',409);
+       if(!existing)await C(collection).updateOne(uniqueness,{$setOnInsert:{...rec.record,source:'verified_'+rec.source,sourceRef:id,verifiedBy:user.email,verifiedAt:now()}},{upsert:true});
+     }catch(e){
+       await C('import_records').updateOne({_id:id,status:'approved'},{$set:{status:'pending_review'},$unset:{reviewedBy:'',reviewedAt:''}});
+       throw e;
+     }
    }
    await audit(db,user,action,{recordId:id,source:rec.source,decision});
    return result({ok:true});
