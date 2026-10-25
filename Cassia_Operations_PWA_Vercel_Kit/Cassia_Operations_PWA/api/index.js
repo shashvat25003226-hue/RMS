@@ -111,10 +111,11 @@ export default async function handler(req,res){
    return reply(res,200,{user:restrictedUser(u)});
   }
   if(action==='tables.request'){
-   await rateLimit(db,'call:'+ipOf(req),12,10*60000);
+   await rateLimit(db,'call-ip:'+ipOf(req),300,10*60000);
    const table=assertTable(body.table),key=safeText(body.key,90),type=safeText(body.type,24);
    if(!['order','help','bill','urgent'].includes(type)||!/^[a-f0-9]{64}$/.test(key))reject('Invalid table request.');
    const tableRec=await db.collection('tables').findOne({number:table,keyHash:sha(key),active:true});if(!tableRec)reject('This table QR link is invalid. Ask staff for help.',403);
+   await rateLimit(db,'call-table:'+table+':'+ipOf(req),20,10*60000);
    const existing=await db.collection('calls').findOne({table,status:{$in:['open','claimed']}});
    if(existing){
      if(type==='urgent'&&existing.type!=='urgent'){
@@ -128,13 +129,15 @@ export default async function handler(req,res){
    return reply(res,200,{ok:true,status:'open',message:'Your request has reached the restaurant. A waiter will respond.'});
   }
   if(action==='tables.status'){
-   await rateLimit(db,'table-status:'+ipOf(req),50,10*60000);
+   await rateLimit(db,'table-status-ip:'+ipOf(req),1500,10*60000);
    const table=assertTable(body.table),key=safeText(body.key,90);
    if(!/^[a-f0-9]{64}$/.test(key))reject('Invalid table link.',403);
    const active=await db.collection('tables').findOne({number:table,keyHash:sha(key),active:true},{projection:{number:1}});
    if(!active)reject('This table QR link is no longer active. Ask staff to renew it.',403);
+   await rateLimit(db,'table-status-table:'+table+':'+ipOf(req),180,10*60000);
    const current=await db.collection('calls').findOne({table,status:{$in:['open','claimed']}},{projection:{status:1,type:1,updatedAt:1}});
-   return reply(res,200,{status:current?.status||'idle',type:current?.type||null,updatedAt:current?.updatedAt||null});
+   const resolved=current?null:await db.collection('calls').findOne({table,status:'done',updatedAt:{$gte:new Date(Date.now()-30*60000)}},{projection:{status:1,updatedAt:1},sort:{updatedAt:-1}});
+   return reply(res,200,{status:current?.status||resolved?.status||'idle',type:current?.type||null,updatedAt:current?.updatedAt||resolved?.updatedAt||null});
   }
   if(action==='orders.track'){
    await rateLimit(db,'track:'+ipOf(req),70,10*60000);
