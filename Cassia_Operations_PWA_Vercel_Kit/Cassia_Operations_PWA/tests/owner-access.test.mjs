@@ -22,7 +22,8 @@ test('coupon redemption requires reception or management, not waiter or chef',()
  for(const role of ['waiter','chef'])assert.equal(can(role,'coupons.redeem'),false);
 });
 test('notifications are role checked and all staff may read own alerts',()=>{
- for(const role of roles)for(const action of ['notifications.list','notifications.read'])assert.equal(can(role,action),true);
+ for(const role of roles.filter(role=>role!=='developer'))for(const action of ['notifications.list','notifications.read'])assert.equal(can(role,action),true);
+ assert.equal(can('developer','notifications.list'),false);
 });
 test('only owner can explicitly set employee password',()=>{
  assert.equal(can('owner','users.set_password'),true);
