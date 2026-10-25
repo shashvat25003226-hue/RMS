@@ -262,7 +262,20 @@ export default async function handler(req,res){
   if(action==='tables.list'){const data=await C('tables').find({active:true},{projection:{number:1}}).sort({number:1}).toArray();return reply(res,200,{tables:data.map(x=>x.number)})}
   if(action==='tables.provision'){const table=assertTable(body.number),key=hex();await C('tables').updateOne({number:table},{$set:{keyHash:sha(key),active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{table});return reply(res,200,{table,link:`${process.env.APP_ORIGIN||'https://your-domain.vercel.app'}/?table=${table}&key=${key}`,warning:'Print/save this QR URL now. Generating a new one invalidates the previous link.'})}
   if(action==='menu.list'){const items=await C('menu').find({active:{$ne:false}},{projection:{name:1,category:1,available:1}}).sort({category:1,name:1}).toArray();return reply(res,200,{items:items.map(i=>({id:String(i._id),name:i.name,category:i.category,available:i.available!==false}))})}
-  if(action==='menu.update'){const name=safeText(body.name,120),category=safeText(body.category,55);if(!name||!category)reject('Enter item and category.');await C('menu').updateOne({name},{$set:{name,category,available:body.available!==false,active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{name});return reply(res,200,{ok:true})}
+  if(action==='menu.update'){
+   const name=safeText(body.name,120),category=safeText(body.category,55);
+   if(!name)reject('Choose a menu item.');
+   if(u.role==='chef'){
+     const result=await C('menu').updateOne({name,active:{$ne:false}},{$set:{available:body.available===true,updatedAt:new Date()}});
+     if(!result.matchedCount)reject('Menu item not found. Ask a manager to add it.',404);
+   }else{
+     if(!category)reject('Enter menu category.');
+     await C('menu').updateOne({name},{$set:{name,category,available:body.available!==false,active:true,updatedAt:new Date()}},{upsert:true});
+   }
+   await audit(db,u,action,{name,available:body.available===true});
+   await publish(db,['owner','manager','chef','waiter'],'menu','Menu availability updated',name+' is '+(body.available===true?'available.':'sold out.'));
+   return reply(res,200,{ok:true});
+  }
   if(action==='orders.list'){const q=u.role==='waiter'?{createdBy:String(u._id)}:{};const data=await C('orders').find(q,{projection:{trackHash:0}}).sort({createdAt:-1}).limit(150).toArray();return reply(res,200,{orders:data.map(o=>({...o,id:String(o._id),_id:undefined,idempotencyKey:undefined,customerPhone:u.role==='chef'?undefined:o.customerPhone}))})}
   if(action==='orders.create'){
    const table=assertTable(body.table),items=assertItems(body.items),key=safeText(body.idempotencyKey,80);
