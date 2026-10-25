@@ -21,3 +21,36 @@
 .coupon-list{display:grid;gap:7px;font-size:12px;padding:12px;border-radius:14px;background:rgba(177,147,92,.09);margin:12px 0}
 .coupon-list>div{line-height:1.5}
 @media(max-width:600px){.notification-drawer{right:-54px;padding:15px}.notification-head strong{font-size:13px}.customer-card .btn-row{flex-wrap:wrap}.customer-card .btn-row button{flex:1 1 120px}}
+
+
+/* Operational release: stable headers, responsive roles, and accessible forms */
+.page-head{align-items:center;min-width:0;flex-wrap:wrap}
+.page-head>div:first-child{flex:1 1 320px;min-width:0}
+.page-head h1{overflow-wrap:break-word;line-height:1.1}
+.head-actions{flex-shrink:0}
+.work-actions{display:grid;gap:6px;font-size:13px;color:var(--muted);margin:12px 0 22px}
+.work-actions p{margin:0}
+.metric-row{padding:13px 0;border-bottom:1px solid var(--line);display:flex;gap:16px;align-items:center;justify-content:space-between;font-size:13px}
+.metric-row:last-child{border-bottom:0}
+.metric-row strong{font-size:21px;color:var(--ink)}
+.checkbox-line{display:flex;align-items:flex-start;gap:12px;line-height:1.45}
+.checkbox-line input{width:18px;min-width:18px;height:18px;margin:2px 0 0;min-height:initial}
+#closingAssignForm select{width:100%}
+#menuCards .mini-btn{margin-top:12px}
+#userBadge{cursor:pointer;padding:4px 7px;border-radius:14px}
+#userBadge:hover,#userBadge:focus-visible{background:rgba(162,137,91,.12);outline-offset:2px}
+.profile-menu{position:fixed;z-index:110;right:22px;top:78px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:17px;box-shadow:0 22px 55px #102a1b35;padding:18px;width:min(310px,calc(100vw - 28px));display:grid;gap:10px}
+.profile-menu strong{font-size:15px}
+.profile-menu small{color:var(--muted);overflow-wrap:anywhere}
+.profile-menu button{width:100%;padding:11px;text-align:left;border:1px solid var(--line);border-radius:11px;background:transparent;color:var(--ink);cursor:pointer}
+.profile-menu button:hover{background:rgba(162,137,91,.09)}
+@media(max-width:650px){
+ .page-head{align-items:stretch;gap:12px}
+ .page-head>div:first-child{flex-basis:100%}
+ .page-head h1{font-size:clamp(34px,8.2vw,45px);letter-spacing:-.028em}
+ .head-actions{width:100%}
+ .head-actions>*{flex:1}
+ .profile-menu{top:70px;right:8px}
+ #menuCards .order-card{min-width:0}
+ .notification-drawer{right:-54px}
+}
