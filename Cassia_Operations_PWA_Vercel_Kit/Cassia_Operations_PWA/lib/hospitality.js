@@ -1,7 +1,7 @@
 import {safeText} from './core.js';
 const err=(message,status=400)=>{const e=new Error(message);e.status=status;throw e};
 const trim=s=>safeText(s,160);
-const asDate=v=>{const s=safeText(v,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||new Date(s+'T12:00:00Z').toISOString().slice(0,10)!==s)err('Select a valid date');return s};
+const asDate=v=>{const s=safeText(v,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||!Number.isFinite(Date.parse(s+'T12:00:00Z'))||new Date(s+'T12:00:00Z').toISOString().slice(0,10)!==s)err('Select a valid date');return s};
 const asPhone=v=>{let s=String(v||'').replace(/\D/g,'');if(s.startsWith('91')&&s.length===12)s=s.slice(2);if(!/^[6-9]\d{9}$/.test(s))err('Enter a valid 10-digit phone number');return s};
 const allowedSlots=['10:00–14:00','14:00–18:00','18:00–23:00'];
 const reasons=['birthday','anniversary','party','corporate','other'];
@@ -29,7 +29,7 @@ export async function hospitalityAction(action,{db,user,body,audit,publish}){
   if(!books)err('Reception or management must create a banquet booking.',403);
   const date=asDate(body.date),slot=safeText(body.slot,30),name=trim(body.name),phone=asPhone(body.phone),
      reason=safeText(body.reason,30),otherReason=trim(body.otherReason),decoration=body.decoration===true;
-  if(date<new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}))err('Choose today or a future date.');
+  if(date<new Date(Date.now()+19800000).toISOString().slice(0,10))err('Choose today or a future date.');
   if(!allowedSlots.includes(slot))err('Choose a displayed available time slot.');
   if(name.length<2||name.length>100)err('Enter customer name.');
   if(!reasons.includes(reason)||(reason==='other'&&otherReason.length<3))err('Choose a valid event occasion.');
