@@ -124,7 +124,9 @@ export default async function handler(req,res){
      }
      return reply(res,200,{ok:true,status:existing.status,message:existing.status==='claimed'?'A waiter is attending your request.':'Your request is already in the queue. The team has been notified.'});
    }
-   const row={table,type,status:'open',createdAt:new Date(),updatedAt:new Date(),claimedBy:null};const add=await db.collection('calls').insertOne(row);
+   const row={table,type,status:'open',createdAt:new Date(),updatedAt:new Date(),claimedBy:null};let add;
+   try{add=await db.collection('calls').insertOne(row)}
+   catch(e){if(e.code===11000)return reply(res,200,{ok:true,status:'open',message:'Your table already has an active request. The team has been notified.'});throw e}
    await publish(db,['owner','manager','waiter'],type==='urgent'?'urgent':'table-call',type==='urgent'?'Urgent guest assistance':'Guest needs help','Table '+table+' • '+type+' request.');
    return reply(res,200,{ok:true,status:'open',message:'Your request has reached the restaurant. A waiter will respond.'});
   }
