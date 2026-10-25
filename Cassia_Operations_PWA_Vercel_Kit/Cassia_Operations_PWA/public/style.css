@@ -284,3 +284,71 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
  .page-head .head-actions button{min-height:43px}
 }
 @media(prefers-reduced-motion:reduce){.nav-extra,.guest-recognition{animation:none!important}.order-card,.stat-card,.guest-actions button{transition:none!important}}
+
+
+/* Cassia operations refinement: focused alerts, clear account controls and compact kitchen */
+.top-actions{gap:10px;min-width:0;flex-shrink:0}
+.user-badge{display:flex;align-items:center;gap:8px;border:1px solid var(--line);padding:4px 4px 4px 11px;border-radius:999px;background:var(--card);min-height:45px;max-width:170px;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.user-badge:hover{border-color:var(--gold);box-shadow:0 5px 18px #162a2111;transform:translateY(-1px)}
+.user-badge span{font-size:12px;max-width:85px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-badge .avatar{width:34px;height:34px;flex:none}
+.notification-drawer{position:absolute;right:0;top:calc(100% + 11px);width:min(400px,calc(100vw - 24px));padding:0;overflow:hidden;max-height:min(75dvh,620px);display:flex;flex-direction:column;isolation:isolate;box-shadow:0 22px 55px #0c241f25;border-radius:19px}
+.notification-drawer.hidden{display:none!important}
+.notification-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0!important;padding:19px 20px 15px;border-bottom:1px solid var(--line)}
+.notification-head>div{display:grid;gap:5px}
+.notification-head strong{font:400 23px var(--serif)}
+.notification-head small{color:var(--muted);font-size:11px}
+.icon-action{background:var(--soft);border:0;color:var(--ink);border-radius:10px;width:34px;height:34px;cursor:pointer}
+.notification-controls{display:flex;align-items:center;gap:6px;padding:12px 15px;border-bottom:1px solid var(--line)}
+.notice-mode{border:0;background:transparent;color:var(--muted);border-radius:10px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.notice-mode.active{background:var(--soft);color:var(--ink)}
+.notice-mark-all{margin-left:auto;white-space:nowrap;font-size:10px!important;padding:9px!important}
+.notice-content{overflow-y:auto;overscroll-behavior:contain;min-height:90px;max-height:min(48dvh,440px);padding:8px 10px 12px;scrollbar-width:thin}
+.notification-list-item{display:grid;gap:7px;text-align:left;width:100%;padding:13px 14px!important;border:1px solid transparent!important;border-radius:11px!important;background:transparent!important;color:var(--ink);cursor:pointer;min-width:0;transition:background .16s ease}
+.notification-list-item:hover{background:var(--soft)!important}
+.notification-list-item.unread{background:#b4a07012!important}
+.notification-list-item span{font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.notification-list-item small{color:var(--muted);font-size:10px}
+.notice-heading{display:flex;align-items:flex-start;gap:8px;justify-content:space-between}
+.notice-heading strong{font-weight:800}
+.notice-repeat{border-radius:999px;background:var(--soft);padding:2px 8px;font-size:10px!important;white-space:nowrap}
+.notice-empty{display:grid;justify-items:center;gap:7px;padding:25px;text-align:center}
+.notice-empty>span{font-size:24px;display:grid;place-items:center;background:#e4ede6;color:#227145;width:46px;height:46px;border-radius:50%;margin-bottom:4px}
+.notice-empty strong{font:400 21px var(--serif)}
+.notice-empty p{margin:0;color:var(--muted);font-size:12px}
+.notification-foot{border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;justify-content:space-between;padding:12px 16px;font-size:10px;color:var(--muted);line-height:1.45}
+.text-action{border:0;background:none;color:var(--ink);font-weight:700;text-decoration:underline;cursor:pointer;white-space:nowrap;font-size:10px}
+.kitchen-overview{display:flex;justify-content:space-between;align-items:center;gap:16px;background:linear-gradient(112deg,var(--forest),#27503a);border-radius:19px;color:#f8f5eb;padding:24px 27px;margin-bottom:16px;overflow:hidden}
+.kitchen-overview .eyebrow{color:#dbc18e}
+.kitchen-overview h2{font:400 35px var(--serif);margin:7px 0 5px}
+.kitchen-overview p{margin:0;font-size:12px;color:#d7e2d8}
+.kitchen-active-count{border:1px solid #ffffff44;border-radius:999px;padding:9px 14px;white-space:nowrap;font-size:12px;font-weight:700}
+.kitchen-status-tabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:4px 0 16px;overscroll-behavior-x:contain}
+.kitchen-status-tabs::-webkit-scrollbar{display:none}
+.kitchen-tab{min-width:155px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:13px 14px;font:700 12px var(--sans);cursor:pointer;transition:background .17s,border-color .17s,transform .17s}
+.kitchen-tab.selected{background:#decbac23;border-color:var(--gold)}
+.kitchen-tab:hover{transform:translateY(-1px);border-color:var(--gold)}
+.kitchen-tab strong{font-size:14px;background:var(--soft);min-width:24px;height:24px;display:grid;place-items:center;border-radius:9px}
+.kitchen-ticket-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;align-items:start}
+.kitchen-ticket{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;min-width:0;box-shadow:var(--shadow);display:grid;gap:13px;animation:reveal-nav .2s ease}
+.kitchen-attention{border-color:#c79e72}
+.kitchen-ticket-top,.kitchen-ticket-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.kitchen-ticket-heading h3{font:400 29px var(--serif);margin:0}
+.kitchen-ticket-heading small{font-size:10px;color:var(--muted)}
+.kitchen-dishes{list-style:none;margin:0;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:grid;gap:12px}
+.kitchen-dishes li{display:flex;gap:12px;align-items:start;font-size:14px;color:var(--ink)}
+.kitchen-dishes li>strong{font-size:14px;color:#b3915f;white-space:nowrap}
+.kitchen-dishes li span{display:grid;gap:3px}
+.kitchen-dishes li small{color:var(--muted);font-size:11px}
+.kitchen-order-note{font-size:12px;color:var(--muted);line-height:1.5;margin:0;background:var(--soft);padding:11px;border-radius:9px}
+.kitchen-warning{font-size:11px;margin:0;color:#995e2a}
+.kitchen-action{display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;background:var(--forest);color:white;border:0;border-radius:11px;padding:14px 15px;font:700 13px var(--sans);cursor:pointer;transition:transform .18s,background .18s}
+.kitchen-action:hover{background:#31583f;transform:translateY(-1px)}
+.kitchen-ready-message{background:#e3f2e7;border-radius:10px;color:#286341;padding:13px;font-size:12px;font-weight:700}
+.kitchen-empty{grid-column:1/-1;display:grid;justify-items:center;gap:9px;padding:40px 18px;background:var(--card);border:1px dashed var(--line);border-radius:18px;text-align:center}
+.kitchen-empty-icon{width:48px;height:48px;background:var(--soft);border-radius:50%;display:grid;place-items:center;font-size:24px;color:#32724f}
+.kitchen-empty h3{font:400 26px var(--serif);margin:0}
+.kitchen-empty p{margin:0;color:var(--muted);font-size:13px}
+@media(max-width:880px){.top-actions{gap:6px}.user-badge{padding:3px 3px 3px 8px}.user-badge .avatar{width:32px;height:32px}.user-badge span{max-width:55px}.notification-drawer{position:fixed;top:70px;right:12px;left:12px;width:auto;max-height:min(74dvh,620px)}.kitchen-overview{padding:19px}}
+@media(max-width:520px){.top-actions .connected-label{display:none}.user-badge span{display:none}.user-badge{padding:3px;border:0;background:transparent;min-height:35px}.user-badge .avatar{width:35px;height:35px}.notification-drawer{top:65px}.kitchen-overview{align-items:flex-start;flex-wrap:wrap}.kitchen-active-count{font-size:11px}.kitchen-ticket-grid{grid-template-columns:minmax(0,1fr)}.kitchen-tab{min-width:145px;padding:10px 11px}.kitchen-ticket{padding:16px}.notification-controls{padding:11px}.notice-mark-all{font-size:10px!important}}
+@media(prefers-reduced-motion:reduce){.kitchen-ticket{animation:none}.kitchen-tab,.kitchen-action,.user-badge{transition:none}}
