@@ -265,7 +265,7 @@ export default async function handler(req,res){
   }
   if(action==='tables.list'){const data=await C('tables').find({active:true},{projection:{number:1}}).sort({number:1}).toArray();return reply(res,200,{tables:data.map(x=>x.number)})}
   if(action==='tables.provision'){const table=assertTable(body.number),key=hex();await C('tables').updateOne({number:table},{$set:{keyHash:sha(key),active:true,updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{table});return reply(res,200,{table,link:`${process.env.APP_ORIGIN||'https://your-domain.vercel.app'}/?table=${table}&key=${key}`,warning:'Print/save this QR URL now. Generating a new one invalidates the previous link.'})}
-  if(action==='menu.list'){const items=await C('menu').find({active:{$ne:false}},{projection:{name:1,category:1,available:1,price:1,priceVerified:1}}).sort({category:1,name:1}).toArray();return reply(res,200,{items:items.map(i=>({id:String(i._id),name:i.name,category:i.category,available:i.available!==false,price:i.priceVerified===true?i.price:null,priceVerified:i.priceVerified===true}))})}
+  if(action==='menu.list'){const items=await C('menu').find({active:{$ne:false}},{projection:{name:1,category:1,available:1,price:1,priceVerified:1,examplePrice:1}}).sort({category:1,name:1}).toArray();return reply(res,200,{items:items.map(i=>({id:String(i._id),name:i.name,category:i.category,available:i.available!==false,price:i.priceVerified===true?i.price:null,priceVerified:i.priceVerified===true,examplePrice:i.priceVerified===true?null:i.examplePrice??null}))})}
   if(action==='menu.update'){
    const name=safeText(body.name,120),category=safeText(body.category,55);
    if(!name)reject('Choose a menu item.');
