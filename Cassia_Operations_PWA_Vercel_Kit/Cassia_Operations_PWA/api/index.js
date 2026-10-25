@@ -144,6 +144,11 @@ export default async function handler(req,res){
    const data=await C('users').find({},{projection:{name:1,email:1,role:1,active:1,mustRotatePassword:1,createdAt:1}}).sort({active:-1,role:1,name:1}).toArray();
    return reply(res,200,{users:data.map(x=>({...restrictedUser(x),active:x.active!==false,mustRotatePassword:x.mustRotatePassword===true}))});
   }
+  if(action==='users.assignable'){
+   const roles=u.role==='chef'?['chef','waiter']:['owner','manager','chef','waiter','reception'];
+   const users=await C('users').find({active:true,role:{$in:roles}},{projection:{name:1,email:1,role:1}}).sort({name:1}).toArray();
+   return reply(res,200,{assignees:users.map(x=>({name:x.name,email:x.email,role:x.role}))});
+  }
   if(action==='users.create'){
    const email=assertEmail(body.email),name=safeText(body.name,80),role=safeText(body.role,30);
    if(name.length<2||!['manager','chef','waiter','reception'].includes(role))reject('Enter a valid staff name and role.');
@@ -327,7 +332,32 @@ export default async function handler(req,res){
   if(action==='leave.request'){const date=safeText(body.date,20),reason=safeText(body.reason,260);if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!reason)reject('Enter date and reason.');await C('leave').insertOne({userId:String(u._id),userEmail:u.email,date,reason,status:'pending',createdAt:new Date()});await publish(db,['owner','manager'],'leave','Leave awaiting approval',u.name+' requested leave on '+date);return reply(res,200,{ok:true})}
   if(action==='leave.list'){const query=['owner','manager'].includes(u.role)?{}:{userId:String(u._id)};const rows=await C('leave').find(query).sort({createdAt:-1}).limit(100).toArray();return reply(res,200,{leave:rows.map(x=>({...x,id:String(x._id),_id:undefined}))})}
   if(action==='leave.review'){let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid leave ID')}if(!['approved','declined'].includes(body.status))reject('Invalid approval');const rec=await C('leave').findOne({_id:id});if(!rec||rec.status!=='pending'||rec.userId===String(u._id))reject('Cannot approve this request.',409);await C('leave').updateOne({_id:id},{$set:{status:body.status,reviewedBy:u.email,reviewedAt:new Date()}});await audit(db,u,action,{id:String(id),status:body.status});await publish(db,['owner','manager'],'leave','Leave reviewed','Leave '+body.status+' for '+rec.userEmail,rec.userEmail);return reply(res,200,{ok:true})}
-  if(action==='closing.confirm'){const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10);await C('closing').updateOne({shift,userId:String(u._id)},{$set:{shift,userId:String(u._id),tabletCharging:body.tabletCharging===true,notes:safeText(body.notes,260),updatedAt:new Date()}},{upsert:true});await audit(db,u,action,{shift});return reply(res,200,{ok:true})}
+  if(action==='closing.list'){
+   const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10);
+   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(shift))reject('Choose a valid date.');
+   const filter=['owner','manager'].includes(u.role)?{shift}:{shift,assignedTo:u.email};
+   const list=await C('closing').find(filter,{projection:{shift:1,assignedTo:1,status:1,tabletCharging:1,notes:1,completedBy:1,updatedAt:1}}).sort({assignedTo:1}).limit(50).toArray();
+   return reply(res,200,{handovers:list.map(x=>({id:String(x._id),shift:x.shift,assignedTo:x.assignedTo,status:x.status||'assigned',tabletCharging:x.tabletCharging===true,notes:x.notes||'',completedBy:x.completedBy,updatedAt:x.updatedAt}))});
+  }
+  if(action==='closing.assign'){
+   const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10),assignedTo=assertEmail(body.assignedTo);
+   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(shift))reject('Choose a valid shift date.');
+   const worker=await C('users').findOne({email:assignedTo,active:true});
+   if(!worker||worker.role==='owner')reject('Assign an active manager, kitchen or service employee.',404);
+   await C('closing').updateOne({shift,assignedTo},{$setOnInsert:{shift,assignedTo,status:'assigned',tabletCharging:false,createdAt:new Date()},$set:{assignedBy:u.email,updatedAt:new Date()}},{upsert:true});
+   await audit(db,u,action,{shift,assignedTo});
+   await publish(db,[worker.role],'handover','Closing handover assigned','A closing checklist was assigned for '+shift,worker.email);
+   return reply(res,200,{ok:true});
+  }
+  if(action==='closing.confirm'){
+   const shift=safeText(body.shift,20)||new Date().toISOString().slice(0,10);
+   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(shift))reject('Choose a valid shift date.');
+   const result=await C('closing').updateOne({shift,assignedTo:u.email,status:'assigned'},{$set:{status:'completed',tabletCharging:body.tabletCharging===true,notes:safeText(body.notes,260),completedBy:u.email,updatedAt:new Date()}});
+   if(!result.matchedCount)reject('No open closing assignment for your account on this date. Ask your manager.',409);
+   await audit(db,u,action,{shift});
+   await publish(db,['owner','manager'],'handover','Closing handover completed',u.name+' finished the '+shift+' handover.');
+   return reply(res,200,{ok:true});
+  }
   if(action==='reports.summary'){
    const [openOrders,unmatched,openCalls,openTasks,pendingLeave,stockLow]=await Promise.all([C('orders').countDocuments({status:{$nin:['served','cancelled']}}),C('orders').countDocuments({billingStatus:'unmatched'}),C('calls').countDocuments({status:{$ne:'done'}}),C('tasks').countDocuments({status:{$ne:'done'}}),C('leave').countDocuments({status:'pending'}),C('stock').countDocuments({quantity:{$lte:2}})]);
    return reply(res,200,{data:{openOrders,unmatched,openCalls,openTasks,pendingLeave,stockLow},updatedAt:new Date().toISOString(),note:'Petpooja sales and Attendo attendance are not synced.'});
