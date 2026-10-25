@@ -102,10 +102,10 @@ export async function operationalAction(action,{db,user,body,audit,publish}){
    await audit(db,user,action,{email,highPerformer});return result({ok:true});
  }
  if(action==='performance.reward'){
-   const email=emailOf(body.email),month=monthOf(body.month),title=safeText(body.title,100),points=Number(body.points);
+   const email=emailOf(body.email),month=monthOf(body.month),title=safeText(body.title,100),points=Number(body.points),rewardType=safeText(body.rewardType,20)||'recognition';if(!['recognition','certificate','team_perk'].includes(rewardType))fail('Choose a valid recognition type.');
    if(title.length<4||!Number.isInteger(points)||points<1||points>20)fail('Enter a recognition title and 1–20 points.');
    const worker=await C('users').findOne({email,active:true});if(!worker||worker.role==='owner')fail('Choose an active staff member.');
-   await C('recognition').insertOne({email,month,title,points,awardedBy:user.email,createdAt:now()});
+   await C('recognition').insertOne({email,month,title,points,rewardType,awardedBy:user.email,createdAt:now()});
    await audit(db,user,action,{email,month,points,title});
    await publish(db,[worker.role],'recognition','Well done!','Your manager has recognised your work: '+title,email);
    return result({ok:true});
@@ -113,7 +113,7 @@ export async function operationalAction(action,{db,user,body,audit,publish}){
  if(action==='performance.list'){
    const month=monthOf(body.month||new Date().toISOString().slice(0,7));
    const [staff,tasks,rewards]=await Promise.all([C('users').find({role:{$ne:'owner'},active:true},{projection:{email:1,name:1,role:1,highPerformer:1}}).limit(160).toArray(),C('tasks').find({status:'done',updatedAt:{$gte:new Date(month+'-01'),$lt:new Date(new Date(month+'-01').setMonth(Number(month.slice(5,7))))}},{projection:{assignedTo:1}}).limit(2000).toArray(),C('recognition').find({month}).limit(1000).toArray()]);
-   const scores=staff.map(x=>{const completed=tasks.filter(t=>t.assignedTo===x.email).length,awards=rewards.filter(r=>r.email===x.email),points=awards.reduce((sum,r)=>sum+r.points,0);return {email:x.email,name:x.name,role:x.role,completed,recognitionPoints:points,score:completed+points,highPerformer:x.highPerformer===true,awards:awards.map(x=>({title:x.title,points:x.points}))}}).sort((a,b)=>b.score-a.score);
+   const scores=staff.map(x=>{const completed=tasks.filter(t=>t.assignedTo===x.email).length,awards=rewards.filter(r=>r.email===x.email),points=awards.reduce((sum,r)=>sum+r.points,0);return {email:x.email,name:x.name,role:x.role,completed,recognitionPoints:points,score:completed+points,highPerformer:x.highPerformer===true,awards:awards.map(x=>({title:x.title,points:x.points,rewardType:x.rewardType||'recognition'}))}}).sort((a,b)=>b.score-a.score);
    return result({month,leaderboard:scores.map((x,i)=>user.role==='owner'||user.role==='manager'||x.email===user.email?{...x,rank:i+1}:{name:x.name,role:x.role,rank:i+1,score:x.score,completed:x.completed,recognitionPoints:x.recognitionPoints}) ,note:'Recognition is owner-awarded; rankings are indicative and must not be used for automatic discipline or pay decisions.'});
  }
  if(action==='inventory.readiness'){
