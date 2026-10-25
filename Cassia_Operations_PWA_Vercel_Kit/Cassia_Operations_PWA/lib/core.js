@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 export const roles=['owner','manager','chef','waiter','reception'];
 export const orderStatuses=['sent','received','preparing','ready','served','cancelled'];
 export const allowedActions={
-  'users.create':['owner'],'users.list':['owner','manager'],'users.update':['owner'],'users.reset_password':['owner'],'users.set_password':['owner'],
+  'users.create':['owner'],'users.list':['owner','manager'],'users.assignable':['owner','manager','chef'],'users.update':['owner'],'users.reset_password':['owner'],'users.set_password':['owner'],
   'tables.list':['owner','manager','chef','waiter','reception'],'tables.provision':['owner','manager'],
   'orders.list':['owner','manager','chef','waiter','reception'],'orders.create':['owner','manager','waiter'],
   'orders.ack':['owner','manager','chef'],'orders.prepare':['owner','manager','chef'],'orders.ready':['owner','manager','chef'],
@@ -11,7 +11,7 @@ export const allowedActions={
   'stock.list':['owner','manager','chef'],'stock.adjust':['owner','manager','chef'],
   'tasks.list':['owner','manager','chef','waiter','reception'],'tasks.create':['owner','manager','chef'],'tasks.update':['owner','manager','chef','waiter','reception'],
   'leave.request':['owner','manager','chef','waiter','reception'],'leave.list':['owner','manager','chef','waiter','reception'],'leave.review':['owner','manager'],
-  'closing.confirm':['owner','manager','chef','waiter','reception'],'reports.summary':['owner','manager'],'menu.list':['owner','manager','chef','waiter','reception'],
+  'closing.confirm':['owner','manager','chef','waiter','reception'],'closing.list':['owner','manager','chef','waiter','reception'],'closing.assign':['owner','manager'],'reports.summary':['owner','manager'],'menu.list':['owner','manager','chef','waiter','reception'],
   'menu.update':['owner','manager'],
   'audit.list':['owner'],
   'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
