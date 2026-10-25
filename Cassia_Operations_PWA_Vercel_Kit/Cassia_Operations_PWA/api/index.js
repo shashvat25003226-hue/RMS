@@ -128,6 +128,7 @@ export default async function handler(req,res){
    try{add=await db.collection('calls').insertOne(row)}
    catch(e){if(e.code===11000)return reply(res,200,{ok:true,status:'open',message:'Your table already has an active request. The team has been notified.'});throw e}
    await publish(db,['owner','manager','waiter'],type==='urgent'?'urgent':'table-call',type==='urgent'?'Urgent guest assistance':'Guest needs help','Table '+table+' • '+type+' request.');
+   if(type==='bill')await publish(db,['reception'],'billing','Guest requested bill','Table '+table+' • Prepare the official Petpooja bill. A waiter will deliver it.');
    return reply(res,200,{ok:true,status:'open',message:'Your request has reached the restaurant. A waiter will respond.'});
   }
   if(action==='tables.status'){
@@ -340,7 +341,7 @@ export default async function handler(req,res){
    const result=await C('orders').updateOne({orderId},{$set:{billingStatus,petpoojaRef,updatedAt:new Date()}});if(!result.matchedCount)reject('Order not found.',404);
    await audit(db,u,action,{orderId,billingStatus,petpoojaRef});await publish(db,['owner','manager','reception'],'billing','Petpooja reconciliation updated','Order '+orderId+' • '+billingStatus+'.');return reply(res,200,{ok:true});
   }
-  if(action==='calls.list'){const calls=await C('calls').find({status:{$ne:'done'}}).sort({createdAt:-1}).limit(150).toArray();return reply(res,200,{calls:calls.map(c=>({...c,id:String(c._id),_id:undefined}))})}
+  if(action==='calls.list'){const calls=await C('calls').find({status:{$ne:'done'}}).sort({createdAt:-1}).limit(150).toArray();calls.sort((a,b)=>Number(b.type==='urgent'&&b.status==='open')-Number(a.type==='urgent'&&a.status==='open')||Number(b.status==='open')-Number(a.status==='open')||new Date(a.createdAt)-new Date(b.createdAt));return reply(res,200,{calls:calls.map(c=>({...c,id:String(c._id),_id:undefined}))})}
   if(action==='calls.assign'){
    let id;try{id=new ObjectId(String(body.id))}catch(_){reject('Invalid service request.',400)}
    const email=assertEmail(body.email);
