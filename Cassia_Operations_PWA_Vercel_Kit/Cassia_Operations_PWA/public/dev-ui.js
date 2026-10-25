@@ -1,5 +1,5 @@
 (()=>{'use strict';
-const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;':'&quot;'}[c])); 
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); 
 const stamp=x=>x?new Date(x).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
 const state=(kind)=>({online:'Operational',connected:'Connected',configured_not_delivery_verified:'Configured · not verified',not_configured:'Not configured',not_directly_monitored:'Check provider dashboard'})[kind]||kind||'Unknown';
 function render(snapshot,localErrors){
