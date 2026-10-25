@@ -29,10 +29,12 @@ test('staff cannot mark attendance or issue monthly awards',()=>{
   assert.equal(can(role,'attendance.mark'),false);
   assert.equal(can(role,'performance.reward'),false);
  }
- for(const role of roles)assert.equal(can(role,'attendance.list'),true);
+ for(const role of roles.filter(x=>x!=='developer'))assert.equal(can(role,'attendance.list'),true);
+ assert.equal(can('developer','attendance.list'),false);
 });
 test('chef and waiter have recipe visibility but cannot change prices',()=>{
- for(const role of roles)assert.equal(can(role,'inventory.readiness'),true);
+ for(const role of roles.filter(x=>x!=='developer'))assert.equal(can(role,'inventory.readiness'),true);
+ assert.equal(can('developer','inventory.readiness'),false);
  for(const role of roles.filter(x=>x!=='owner'))assert.equal(can(role,'menu.price'),false);
 });
 test('new UI routes and print menu are available',()=>{
