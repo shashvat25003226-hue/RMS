@@ -7,7 +7,7 @@ export const allowedActions={
   'orders.list':['owner','manager','chef','waiter','reception'],'orders.create':['owner','manager','waiter'],
   'orders.ack':['owner','manager','chef'],'orders.prepare':['owner','manager','chef'],'orders.ready':['owner','manager','chef'],
   'orders.serve':['owner','manager','waiter'],'orders.reconcile':['owner','manager','reception'],
-  'calls.list':['owner','manager','waiter','reception'],'calls.claim':['owner','manager','waiter','reception'],'calls.done':['owner','manager','waiter','reception'],
+  'calls.list':['owner','manager','waiter','reception'],'calls.claim':['waiter'],'calls.done':['waiter'],'calls.assign':['owner','manager'],
   'stock.list':['owner','manager','chef'],'stock.adjust':['owner','manager','chef'],
   'tasks.list':['owner','manager','chef','waiter','reception'],'tasks.create':['owner','manager','chef'],'tasks.update':['owner','manager','chef','waiter','reception'],
   'leave.request':['owner','manager','chef','waiter','reception'],'leave.list':['owner','manager','chef','waiter','reception'],'leave.review':['owner','manager'],
@@ -19,7 +19,8 @@ export const allowedActions={
   'inventory.readiness':['owner','manager','chef','waiter','reception'],
   'menu.price':['owner'],
   'audit.list':['owner'],
-  'customers.lookup':['owner','manager','waiter','reception'],'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
+  'banquet.slots':['owner','manager','reception'],'banquet.list':['owner','manager','reception'],'banquet.create':['owner','manager','reception'],'banquet.update':['owner','manager','reception'],
+  'customers.insights':['owner','manager','waiter','reception'],'customers.lookup':['owner','manager','waiter','reception'],'customers.list':['owner','manager','waiter','reception'],'customers.save':['owner','manager','waiter','reception'],'customers.vip':['owner','manager'],
   'coupons.issue':['owner','manager'],'coupons.redeem':['owner','manager','reception'],'notifications.list':['owner','manager','chef','waiter','reception'],'notifications.read':['owner','manager','chef','waiter','reception']
 };
 export const can=(role,action)=>(allowedActions[action]||[]).includes(role);
