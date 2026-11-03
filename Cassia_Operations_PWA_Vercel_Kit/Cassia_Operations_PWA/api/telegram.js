@@ -6,7 +6,8 @@ export default async function telegramWebhook(req,res){
   return res.status(405).setHeader('Allow','POST').json({error:'Method not allowed'});
  }
  const header=String(req.headers['x-telegram-bot-api-secret-token']||'');
- if(!process.env.TELEGRAM_WEBHOOK_SECRET||header!==process.env.TELEGRAM_WEBHOOK_SECRET){
+ // If proxying to Render, verify there; otherwise verify in this Vercel function.
+ if(!process.env.RENDER_API_ORIGIN&&(!process.env.TELEGRAM_WEBHOOK_SECRET||header!==process.env.TELEGRAM_WEBHOOK_SECRET)){
   return res.status(403).json({error:'Forbidden'});
  }
  let payload=req.body;
