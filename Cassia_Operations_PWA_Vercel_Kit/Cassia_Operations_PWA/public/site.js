@@ -148,9 +148,11 @@ async function checkBookingLink(){
  const parts=reference.split('.');if(parts.length!==2||!['dine','banquet'].includes(parts[0]))return;
  try{const data=await api('public.track',{type:parts[0],token:parts[1]});const b=data.booking;flash('Cassia booking '+b.date+' '+b.slot+': '+b.status+(b.status==='pending'?' (awaiting confirmation)':''));}catch{flash('The tracking link was not recognised.')}
 }
+const galleryButton=$('#toggleGallery');
+if(galleryButton)galleryButton.addEventListener('click',()=>{const grid=$('#gallery .gallery-grid');const expanded=grid.classList.toggle('expanded');galleryButton.setAttribute('aria-expanded',String(expanded));galleryButton.textContent=expanded?'Show fewer photos ↑':'See all 10 photos ↓';if(!expanded)$('#gallery').scrollIntoView({block:'start',behavior:'smooth'});});
 $('#year').textContent=new Date().getFullYear();
 $('#bookingForm [name=date]').min=today();$('#bookingForm [name=date]').value=today();
 Promise.resolve().then(async()=>{await loadAccount();checkBookingLink()});
 const observe=('IntersectionObserver'in window)?new IntersectionObserver(entries=>{entries.forEach(x=>{if(x.isIntersecting){x.target.classList.add('revealed');observe.unobserve(x.target)}})},{rootMargin:'0px 0px -30px 0px',threshold:.09}):null;
-if(observe)$$('.intro-copy,.show-copy,.banquet-text,.section-heading,.booking-promo>div,.visit-section>div:first-child').forEach(x=>{x.classList.add('will-reveal');observe.observe(x)});
+if(observe)$$('.intro-copy,.show-copy,.banquet-text,.section-heading,.vibe-heading,.faq-heading,.booking-promo>div,.visit-section>div:first-child').forEach(x=>{x.classList.add('will-reveal');observe.observe(x)});
 })();
