@@ -39,14 +39,31 @@
           "value": "no-cache"
         }
       ]
+    },
+    {
+      "source": "/staff.html",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "outputDirectory": "public",
   "framework": null,
   "rewrites": [
     {
+      "source": "/staff",
+      "destination": "/staff.html"
+    },
+    {
+      "source": "/staff/",
+      "destination": "/staff.html"
+    },
+    {
       "source": "/set-password",
-      "destination": "/index.html"
+      "destination": "/staff.html"
     }
   ]
 }
