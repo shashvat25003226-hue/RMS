@@ -126,8 +126,9 @@ export async function customerPortal(action,{db,req,res,body,staff,rateLimit,pub
   notes:safeText(body.notes,350),source:'website',status:'pending',trackHash:sha(token),customerId:c?c._id:null,createdAt:new Date(),updatedAt:new Date()};
   try{row._id=(await C(coll(type)).insertOne(row)).insertedId}catch(e){if(e.code===11000&&type==='banquet')fail('Banquet slot was just reserved. Choose another.',409);throw e}
   await publish(db,['owner','manager','reception'],'booking','New '+type+' request',date+' '+slot+' · '+name);
+  if(c?.telegramChatId)await telegramMessage(c.telegramChatId,'Cassia received your '+(type==='dine'?'FREE dine-in':'banquet hall')+' request for '+date+' at '+slot+'. '+(decoration?'Optional decoration +₹1,000. ':'')+'Status: PENDING reception confirmation. Booking reference: '+String(row._id)+'.');
   await telegramMessage(process.env.TELEGRAM_STAFF_CHAT_ID,'Cassia '+type+' request\n'+name+'\n'+phone+'\n'+date+' '+slot+(decoration?'\nDecoration +₹1,000':''));
-  const msg='Hello Cassia, I have requested '+type+' booking on '+date+' at '+slot+' in the name of '+name+'. Please confirm.';
+  const msg='Hello Cassia, I have requested '+(type==='dine'?'a FREE dine-in table for '+guests+' guest(s)':'the banquet hall')+' on '+date+' at '+slot+' in the name of '+name+'. '+(decoration?'Please include optional ₹1,000 event decoration. ':'')+'Please confirm the availability and booking.';
   return send(201,{booking:{id:String(row._id),date,slot,status:'pending',type,decorationFee:row.decorationFee},trackingToken:token,whatsappUrl:'https://wa.me/91'+wa()+'?text='+encodeURIComponent(msg),message:'Request received. Our team will confirm it.'});
  }
  if(action==='public.logout'){const token=sessionCookie(req);if(token)await C('customer_sessions').deleteOne({hash:sha(token)});setCookie(res,null);return send(200,{ok:true})}
@@ -149,7 +150,7 @@ export async function customerPortal(action,{db,req,res,body,staff,rateLimit,pub
   const changes={updatedAt:new Date()};
   if(body.name!==undefined)changes.name=nameOf(body.name);
   if(body.phone!==undefined)changes.phone=phoneOf(body.phone);
-  if(body.newPassword){if(!await passwordVerify(String(body.currentPassword||''),c.passwordHash))fail('Current password incorrect',403);changes.passwordHash=await passwordHash(String(body.newPassword))}
+  if(body.newPassword){if(String(body.newPassword).length<12||String(body.newPassword).length>256)fail('New password must contain at least 12 characters');if(!await passwordVerify(String(body.currentPassword||''),c.passwordHash))fail('Current password incorrect',403);changes.passwordHash=await passwordHash(String(body.newPassword))}
   if(Object.keys(changes).length<2)fail('Nothing to update');
   await C('customer_accounts').updateOne({_id:c._id},{$set:changes});return send(200,{customer:profile({...c,...changes})});
  }
