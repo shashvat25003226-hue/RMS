@@ -5,7 +5,7 @@ import {can,roles} from '../lib/core.js';
 import {recordIncident} from '../lib/diagnostics.js';
 const api=readFileSync(new URL('../api/index.js',import.meta.url),'utf8');
 const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
-const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+const html=readFileSync(new URL('../public/staff.html',import.meta.url),'utf8');
 test('DeV_Swastik role is diagnostics-only and never gains waiter or owner actions',()=>{
  assert.ok(roles.includes('developer'));
  assert.equal(can('owner','diagnostics.snapshot'),true);
