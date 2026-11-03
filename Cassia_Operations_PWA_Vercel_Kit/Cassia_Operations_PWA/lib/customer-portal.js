@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {ObjectId} from 'mongodb';
 import {hex,sha,safeText,validEmail,passwordHash,passwordVerify,validShiftDate,indiaDay,otpDigest,secureEqual} from './core.js';
+const validCustomerSecret=p=>(/^\d{6}$/.test(p)||p.length>=12)&&p.length<=256;
 const fail=(message,status=400)=>{const e=new Error(message);e.status=status;throw e};
 const emailOf=v=>{const x=safeText(v,240).toLowerCase();if(!validEmail(x))fail('Valid email required');return x};
 const phoneOf=v=>{let p=String(v||'').replace(/\D/g,'');if(p.length===12&&p.startsWith('91'))p=p.slice(2);if(!/^[6-9]\d{9}$/.test(p))fail('Enter a valid 10-digit mobile number');return p};
@@ -48,14 +49,14 @@ export async function customerPortal(action,{db,req,res,body,staff,rateLimit,pub
  if(action==='public.register'){
   await limit('reg:'+String(req.headers['x-forwarded-for']||'unknown').slice(0,90),4);
   const name=nameOf(body.name),email=emailOf(body.email),phone=phoneOf(body.phone),pass=String(body.password||'');
-  if(pass.length<12||pass.length>256)fail('Use a password of at least 12 characters');
+  if(!validCustomerSecret(pass))fail('Use a 6-digit PIN or a password of at least 12 characters');
   if(body.consent!==true)fail('Accept the privacy notice to continue');
   const row={name,email,phone,passwordHash:await passwordHash(pass),active:true,createdAt:new Date()};
   try{row._id=(await C('customer_accounts').insertOne(row)).insertedId}catch(e){if(e.code===11000)fail('Account already exists. Sign in.',409);throw e}
   return send(201,{customer:await loginCustomer(db,res,row),message:'Account created. Email has not been independently verified.'});
  }
  if(action==='public.login'){
-  const email=emailOf(body.email);await limit('login:'+email,7);
+  const email=emailOf(body.email);await limit('login:'+email,5);
   const c=await C('customer_accounts').findOne({email,active:true});
   if(!c||!await passwordVerify(String(body.password||''),c.passwordHash))fail('Incorrect email or password',401);
   return send(200,{customer:await loginCustomer(db,res,c)});
@@ -150,7 +151,7 @@ export async function customerPortal(action,{db,req,res,body,staff,rateLimit,pub
   const changes={updatedAt:new Date()};
   if(body.name!==undefined)changes.name=nameOf(body.name);
   if(body.phone!==undefined)changes.phone=phoneOf(body.phone);
-  if(body.newPassword){if(String(body.newPassword).length<12||String(body.newPassword).length>256)fail('New password must contain at least 12 characters');if(!await passwordVerify(String(body.currentPassword||''),c.passwordHash))fail('Current password incorrect',403);changes.passwordHash=await passwordHash(String(body.newPassword))}
+  if(body.newPassword){if(!validCustomerSecret(String(body.newPassword)))fail('New password must be a 6-digit PIN or at least 12 characters');if(!await passwordVerify(String(body.currentPassword||''),c.passwordHash))fail('Current password incorrect',403);changes.passwordHash=await passwordHash(String(body.newPassword))}
   if(Object.keys(changes).length<2)fail('Nothing to update');
   await C('customer_accounts').updateOne({_id:c._id},{$set:changes});return send(200,{customer:profile({...c,...changes})});
  }
