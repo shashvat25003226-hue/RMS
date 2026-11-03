@@ -8,7 +8,10 @@ export async function database(){
 }
 export async function ensureIndexes(db){
   const specs=[
-    ['users',[{key:{email:1},unique:true}]],['sessions',[{key:{hash:1},unique:true},{key:{expires:1},expireAfterSeconds:0}]],
+    ['users',[{key:{email:1},unique:true}]],
+    ['customer_accounts',[{key:{email:1},unique:true}]],['customer_sessions',[{key:{hash:1},unique:true},{key:{expires:1},expireAfterSeconds:0}]],['customer_otps',[{key:{id:1},unique:true},{key:{expires:1},expireAfterSeconds:0}]],
+    ['telegram_links',[{key:{hash:1},unique:true},{key:{expires:1},expireAfterSeconds:0}]],['telegram_updates',[{key:{expires:1},expireAfterSeconds:0}]],
+    ['dine_bookings',[{key:{date:1,slot:1}},{key:{trackHash:1},unique:true},{key:{customerId:1,date:-1}}]],['sessions',[{key:{hash:1},unique:true},{key:{expires:1},expireAfterSeconds:0}]],
     ['otps',[{key:{id:1},unique:true},{key:{expires:1},expireAfterSeconds:0}]],
     ['orders',[{key:{idempotencyKey:1},unique:true},{key:{orderId:1},unique:true},{key:{trackHash:1},unique:true}]],
     ['banquet_bookings',[{key:{date:1,slot:1},unique:true,partialFilterExpression:{status:{$in:['pending','confirmed']}}},{key:{date:1,status:1}}]],['tables',[{key:{number:1},unique:true}]],['menu',[{key:{name:1},unique:true}]],['closing',[{key:{shift:1,assignedTo:1},unique:true}]],['calls',[{key:{table:1,status:1}},{key:{table:1},unique:true,partialFilterExpression:{status:{$in:['open','claimed']}}}]],['stock',[{key:{name:1},unique:true}]],
