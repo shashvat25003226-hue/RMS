@@ -3,6 +3,7 @@ import {ObjectId} from 'mongodb';
 import {database,ensureIndexes} from '../lib/db.js';
 import {operationalAction} from '../lib/ops.js';
 import {hospitalityAction} from '../lib/hospitality.js';
+import {customerPortal} from '../lib/customer-portal.js';
 import {sendOtp} from '../lib/mail.js';
 import {recordIncident,diagnosticsSnapshot} from '../lib/diagnostics.js';
 import {roles,can,orderStatuses,sha,hex,safeText,validEmail,passwordHash,passwordVerify,otpDigest,secureEqual,advance,restrictedUser,publicOrder,validShiftDate,indiaDay} from '../lib/core.js';
@@ -38,7 +39,7 @@ async function relayToRender(req,res){
   try{
     const data=typeof req.body==='string'?req.body:JSON.stringify(req.body||{});
     const healthQuery=req.method==='GET'&&String(req.url||'').includes('health=ready')?'?health=ready':'';
-    const response=await fetch(target.origin+'/api'+healthQuery,{method:req.method,headers:{'Content-Type':'application/json',Origin:expected,Cookie:String(req.headers.cookie||'')},body:req.method==='POST'?data:undefined,signal:AbortSignal.timeout(13000)});
+    const response=await fetch(target.origin+'/api'+healthQuery,{method:req.method,headers:{'Content-Type':'application/json',Origin:expected,Cookie:String(req.headers.cookie||''),'X-Telegram-Bot-Api-Secret-Token':String(req.headers['x-telegram-bot-api-secret-token']||'')},body:req.method==='POST'?data:undefined,signal:AbortSignal.timeout(13000)});
     if(!(response.headers.get('content-type')||'').includes('application/json'))throw Error('Upstream is not JSON');
     const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('Set-Cookie',cookie);
     return reply(res,response.status,await response.json());
@@ -66,7 +67,7 @@ export default async function handler(req,res){
  const origin=req.headers.origin;const host=req.headers.host;
  if(origin){let parsed;try{parsed=new URL(origin)}catch(_){return reply(res,403,{error:'Invalid origin'})}if(parsed.host!==host&&parsed.origin!==process.env.APP_ORIGIN)return reply(res,403,{error:'Cross-origin requests are not allowed'})}
  let body=req.body;try{if(typeof body==='string')body=JSON.parse(body);if(!body||typeof body!=='object'||Array.isArray(body))throw Error();if(JSON.stringify(body).length>25000)reject('Request too large',413)}catch(e){return reply(res,e.status||400,{error:'Invalid JSON request'})}
- const action=String(body.action||'');
+ const action=String(body.action||(body.update_id!==undefined?'telegram.update':''));
  try{
   const db=await database();
   if(!globalThis.__cassiaIndexes){globalThis.__cassiaIndexes=ensureIndexes(db)}await globalThis.__cassiaIndexes;
@@ -216,6 +217,8 @@ export default async function handler(req,res){
    return reply(res,200,{order:publicOrder(order),note:order.status==='sent'?'The order has been sent; the kitchen has not acknowledged it yet.':null});
   }
   const u=await userFromCookie(db,req);
+  const portal=await customerPortal(action,{db,req,res,body,staff:u,rateLimit,publish,audit});
+  if(portal)return reply(res,portal.status,portal.data);
   if(action==='auth.me')return reply(res,200,{user:u?restrictedUser(u):null});
   if(!u)reject('Sign in with email, password and OTP.',401);
   if(action==='auth.logout'){const token=cookies(req).cassia_sid;if(token)await db.collection('sessions').deleteOne({hash:sha(token)});clearSession(res);return reply(res,200,{ok:true})}
