@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {validShiftDate,indiaDay,can} from '../lib/core.js';
 const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 const api=readFileSync(new URL('../api/index.js',import.meta.url),'utf8');
-const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+const html=readFileSync(new URL('../public/staff.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../public/style.css',import.meta.url),'utf8');
 test('shift date valid October 25 2026 and true ISO input, invalid calendar dates rejected',()=>{
  assert.equal(validShiftDate('2026-10-25'),true);
