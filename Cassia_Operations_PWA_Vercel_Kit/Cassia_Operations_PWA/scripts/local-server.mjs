@@ -6,7 +6,7 @@ const server=http.createServer(async(req,res)=>{
  if(u.pathname==='/api'){
   try{const mod=await import('../api/index.js');let raw='';for await(const part of req){raw+=part;if(raw.length>30000)break}req.body=raw;res.status=c=>{res.statusCode=c;return res};res.json=d=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(d));return res};await mod.default(req,res)}catch(e){res.statusCode=500;res.end(JSON.stringify({error:'Local server error'}));console.error(e.message)}return;
  }
- const rel=u.pathname==='/'?'index.html':decodeURIComponent(u.pathname.slice(1));const f=path.resolve(root,rel);
+ const rel=u.pathname==='/'?'index.html':u.pathname==='/staff'||u.pathname==='/staff/'||u.pathname==='/set-password'?'staff.html':decodeURIComponent(u.pathname.slice(1));const f=path.resolve(root,rel);
  if(!f.startsWith(root+path.sep)&&f!==path.resolve(root,'index.html')){res.statusCode=403;res.end('Forbidden');return}
  try{const data=await fs.readFile(f);res.setHeader('Content-Type',mime[path.extname(f)]||'application/octet-stream');res.end(data)}catch(_){res.statusCode=404;res.end('Not found')}
 });
