@@ -5,7 +5,7 @@ import {can} from '../lib/core.js';
 import {hospitalityAction} from '../lib/hospitality.js';
 const ui=readFileSync(new URL('../public/hospitality-ui.js',import.meta.url),'utf8');
 const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
-const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+const html=readFileSync(new URL('../public/staff.html',import.meta.url),'utf8');
 
 test('reception cannot physically claim or complete a waiter call',()=>{
  for(const action of ['calls.claim','calls.done']) {
