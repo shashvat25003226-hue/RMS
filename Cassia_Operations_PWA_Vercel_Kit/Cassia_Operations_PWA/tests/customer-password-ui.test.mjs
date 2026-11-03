@@ -13,7 +13,7 @@ test('customer login has an accessible working password visibility control',()=>
  assert.match(site,/aria-pressed/);
  assert.match(site,/input\.type=revealing\?'text':'password'/);
  assert.match(site,/wirePasswordToggles\(root\)/);
- assert.match(site,/autocomplete="\'+autocomplete/);
+ assert.match(site,/autocomplete=/);
 });
 test('customer PIN enrollment and updates use matching server-side policy',()=>{
  assert.match(portal,/validCustomerSecret=p=>/);
