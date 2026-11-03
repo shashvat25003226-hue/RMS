@@ -1,2 +1,5 @@
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /staff
+Disallow: /api
+Sitemap: https://cassiams.vercel.app/sitemap.xml
