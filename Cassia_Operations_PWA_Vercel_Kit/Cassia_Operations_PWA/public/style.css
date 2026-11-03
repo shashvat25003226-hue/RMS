@@ -423,3 +423,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .res-empty>span{color:#32784c;font-size:34px}.res-empty h3{font:400 27px var(--serif);margin:0}.res-empty p{color:var(--muted);font-size:13px}
 .res-caption{margin-top:22px;color:var(--muted);font-size:12px;line-height:1.7}
 @media(max-width:620px){.res-summary{gap:8px}.res-summary>div{padding:13px 10px}.res-summary strong{font-size:29px}.res-summary small{font-size:9px}.res-grid{grid-template-columns:minmax(0,1fr)}.res-card{padding:17px}.res-actions :is(button,a){flex:1;text-align:center}}
+
+
+/* Front desk: prioritize website reservations without crowding kitchen and waiter screens. */
+.reservation-quick{margin:0 0 17px;border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.reservation-quick .panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.reservation-quick-row{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:13px 16px;background:var(--soft);border-radius:11px;font-size:12px;margin:0 0 10px}
+.reservation-quick-row strong{color:var(--ink)}
+.reservation-quick-row span{color:var(--muted)}
+.reservation-quick-item{width:100%;border:0;border-bottom:1px solid var(--line);padding:14px 3px;display:flex;justify-content:space-between;align-items:center;text-align:left;gap:12px;background:transparent;color:var(--ink);font-size:12px;cursor:pointer}
+.reservation-quick-item:last-child{border-bottom:0}
+.reservation-quick-item:hover{color:#a17d42}
+.reservation-quick-item span:last-child{font-weight:700;white-space:nowrap}
+@media(max-width:590px){.reservation-quick .panel-head .primary{width:100%;min-height:44px}.reservation-quick-item{align-items:flex-start;flex-direction:column;gap:6px}}
